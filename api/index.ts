@@ -1,4 +1,5 @@
 import { createApiApp } from './_app.js';
+console.log('🚀 SafetyVision API Initializing...');
 
 let cachedApp: any = null;
 
