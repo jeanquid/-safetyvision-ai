@@ -11,8 +11,10 @@ export const loginHandler = async (req: Request, res: Response) => {
         return res.status(400).json({ ok: false, error: 'Email and password required' });
     }
 
+    console.log(`[AUTH] Login attempt for: "${email}"`);
     const user = await getUserByEmail(email);
     if (!user) {
+        console.log(`[AUTH] User NOT found: "${email}"`);
         return res.status(401).json({ ok: false, error: 'Invalid credentials' });
     }
 

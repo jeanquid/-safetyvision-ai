@@ -65,16 +65,22 @@ export async function seedUsers() {
 
     for (const u of usersToSeed) {
         try {
+            console.log(`--- Seeding user: ${u.email} ---`);
             const existing = await getUserByEmail(u.email);
             if (!existing) {
+                console.log(`Hashing password for ${u.email}...`);
                 const passwordHash = await bcrypt.hash(u.password!, 10);
+                console.log(`Inserting ${u.email} into DB...`);
                 await db.query(`
                     INSERT INTO users (id, email, password_hash, role, tenant_id, display_name)
                     VALUES ($1, $2, $3, $4, $5, $6)
                 `, [uuidv4(), u.email, passwordHash, u.role, u.tenantId, u.displayName]);
                 console.log(`✅ User ${u.email} seeded.`);
             } else {
-                console.log(`ℹ️  User ${u.email} already exists — skipping.`);
+                console.log(`ℹ️  User ${u.email} already exists — updating password hash if needed.`);
+                const passwordHash = await bcrypt.hash(u.password!, 10);
+                await db.query('UPDATE users SET password_hash = $1 WHERE email = $2', [passwordHash, u.email]);
+                console.log(`✅ User ${u.email} password updated.`);
             }
         } catch (error) {
             console.error(`❌ Failed to seed user ${u.email}:`, error);
