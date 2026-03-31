@@ -106,7 +106,7 @@ export const listHandler = async (req: Request, res: Response) => {
 /** GET /api/inspections/:id */
 export const getHandler = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const inspection = await getInspection(id);
         if (!inspection) return res.status(404).json({ error: 'Inspection not found' });
 
@@ -119,7 +119,7 @@ export const getHandler = async (req: Request, res: Response) => {
 /** POST /api/inspections/:id/update-task — Update task status */
 export const updateTaskHandler = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const user = (req as any).user;
         const { status, notes } = req.body;
 
@@ -164,7 +164,7 @@ export const deleteHandler = async (req: Request, res: Response) => {
         if (user.role !== 'admin') {
             return res.status(403).json({ error: 'Only admins can delete inspections' });
         }
-        await deleteInspection(req.params.id);
+        await deleteInspection(req.params.id as string);
         res.json({ ok: true });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
