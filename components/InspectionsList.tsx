@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft, FileDown, Camera, Building2 } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft, FileDown, Camera, Building2, ClipboardList } from 'lucide-react';
 
 const LEVEL_STYLE: Record<string, { color: string; bg: string; label: string }> = {
     alto: { color: 'text-red-400', bg: 'bg-red-500/10', label: '🔴 ALTO' },
@@ -246,5 +246,3 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
         </div>
     );
 };
-
-const ArrowLeft = ({ className }: { className?: string }) => <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>;
