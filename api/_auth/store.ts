@@ -2,6 +2,7 @@ import { User } from './types.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../_db.js';
+import { logger } from '../_logger.js';
 
 export async function getUserByEmail(email: string): Promise<User | null> {
     try {
@@ -17,8 +18,8 @@ export async function getUserByEmail(email: string): Promise<User | null> {
             displayName: row.display_name || row.email.split('@')[0],
             createdAt: row.created_at
         };
-    } catch (error) {
-        console.error('Error getting user by email:', error);
+    } catch (error: any) {
+        logger.error('auth-store', 'Error getting user by email', { error: error.message });
         return null;
     }
 }
@@ -37,14 +38,14 @@ export async function getUserById(id: string): Promise<User | null> {
             displayName: row.display_name || row.email.split('@')[0],
             createdAt: row.created_at
         };
-    } catch (error) {
-        console.error('Error getting user by id:', error);
+    } catch (error: any) {
+        logger.error('auth-store', 'Error getting user by id', { error: error.message });
         return null;
     }
 }
 
 export async function seedUsers() {
-    console.log('🌱 Seeding/Updating demo users in database...');
+    logger.info('seed', 'Starting user seeding');
 
     const usersToSeed = [
         {
@@ -66,12 +67,12 @@ export async function seedUsers() {
     for (const u of usersToSeed) {
         try {
             if (!u.password) {
-                console.warn(`⚠️  Skipping ${u.email}: no password in env vars`);
+                logger.warn('seed', 'Skipping user: no password in env vars', { email: u.email });
                 continue;
             }
             const existing = await getUserByEmail(u.email);
             if (existing) {
-                console.log(`ℹ️  User ${u.email} already exists — skipping (no overwrite)`);
+                logger.info('seed', 'User already exists, skipping', { email: u.email });
                 continue;
             }
             const passwordHash = await bcrypt.hash(u.password, 12); // subir rounds de 10 a 12
@@ -79,9 +80,9 @@ export async function seedUsers() {
                 INSERT INTO users (id, email, password_hash, role, tenant_id, display_name)
                 VALUES ($1, $2, $3, $4, $5, $6)
             `, [uuidv4(), u.email, passwordHash, u.role, u.tenantId, u.displayName]);
-            console.log(`✅ User ${u.email} seeded.`);
-        } catch (error) {
-            console.error(`❌ Failed to seed user ${u.email}:`, error);
+            logger.info('seed', 'User seeded', { email: u.email });
+        } catch (error: any) {
+            logger.error('seed', 'Failed to seed user', { email: u.email, error: error.message });
         }
     }
 }

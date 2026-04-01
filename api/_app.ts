@@ -51,7 +51,7 @@ export async function createApiApp() {
     app.use((req, _res, next) => {
         try {
             const size = req.body ? JSON.stringify(req.body).length : 0;
-            console.log(`[API] ${req.method} ${req.path} | ${(size / 1024).toFixed(1)}KB`);
+            logger.info('http', `${req.method} ${req.path}`, { sizeKB: +(size / 1024).toFixed(1) });
         } catch {}
         next();
     });

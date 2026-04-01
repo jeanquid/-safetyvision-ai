@@ -1,5 +1,6 @@
 import db from './_db.js';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from './_logger.js';
 
 export async function savePhoto(
     inspectionId: string,
@@ -8,23 +9,12 @@ export async function savePhoto(
 ): Promise<string> {
     const photoId = uuidv4();
 
-    // Note: The table creation is also handled in _migrate.ts, 
-    // but a check here doesn't hurt for robustness.
-    await db.query(`
-        CREATE TABLE IF NOT EXISTS photos (
-            photo_id UUID PRIMARY KEY,
-            inspection_id UUID NOT NULL,
-            mime_type TEXT NOT NULL,
-            data TEXT NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-
     await db.query(
         'INSERT INTO photos (photo_id, inspection_id, mime_type, data) VALUES ($1, $2, $3, $4)',
         [photoId, inspectionId, mimeType, base64Data]
     );
 
+    logger.info('storage', 'Photo saved', { photoId, inspectionId });
     return photoId;
 }
 

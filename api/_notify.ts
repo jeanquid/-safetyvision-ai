@@ -1,10 +1,12 @@
+import { logger } from './_logger.js';
+
 export async function notifyAlert(
     evento: string,
     payload: Record<string, any>
 ): Promise<void> {
     const webhookUrl = process.env.N8N_WEBHOOK_URL;
     if (!webhookUrl) {
-        console.warn('[n8n] N8N_WEBHOOK_URL not configured — notification skipped.');
+        logger.warn('notify', 'N8N_WEBHOOK_URL not configured, skipping', { evento });
         return;
     }
 
@@ -23,11 +25,11 @@ export async function notifyAlert(
         });
 
         if (response.ok) {
-            console.log(`[n8n] Alert sent for event: ${evento}`);
+            logger.info('notify', 'Alert sent', { evento });
         } else {
-            console.warn(`[n8n] Webhook returned ${response.status} for "${evento}".`);
+            logger.warn('notify', 'Webhook returned non-OK', { evento, status: response.status });
         }
-    } catch (err) {
-        console.warn(`[n8n] Network error for "${evento}":`, err);
+    } catch (err: any) {
+        logger.warn('notify', 'Network error sending alert', { evento, error: err.message });
     }
 }

@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { DetectedRisk, RiskLevel, RiskCategory } from './_types.js';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from './_logger.js';
 
 const MODELS_FALLBACK = [
     'gemini-2.0-flash',
@@ -100,7 +101,7 @@ export async function analyzeImageWithGemini(
 
     for (const modelName of MODELS_FALLBACK) {
         try {
-            console.log(`[AI] Trying model: ${modelName}`);
+            logger.info('ai', 'Trying model', { model: modelName });
             const model = genAI.getGenerativeModel({ model: modelName });
 
             const contextInfo = context
@@ -119,7 +120,7 @@ export async function analyzeImageWithGemini(
 
             const response = result.response;
             const text = response.text();
-            console.log(`[AI] Response from ${modelName}: ${text.substring(0, 200)}...`);
+            logger.info('ai', 'Model response received', { model: modelName, preview: text.substring(0, 100) });
 
             // Parse JSON response
             const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
@@ -138,7 +139,7 @@ export async function analyzeImageWithGemini(
 
             return { risks, model: modelName, rawResponse: text };
         } catch (err: any) {
-            console.warn(`[AI] Model ${modelName} failed: ${err.message}`);
+            logger.warn('ai', 'Model failed, trying fallback', { model: modelName, error: err.message });
             lastError = err;
             continue;
         }
@@ -188,7 +189,7 @@ Analizá la descripción y detectá los riesgos mencionados.`;
 
             return { risks, model: modelName, rawResponse: text };
         } catch (err: any) {
-            console.warn(`[AI] Model ${modelName} failed for text: ${err.message}`);
+            logger.warn('ai', 'Model failed for text analysis, trying fallback', { model: modelName, error: err.message });
             continue;
         }
     }

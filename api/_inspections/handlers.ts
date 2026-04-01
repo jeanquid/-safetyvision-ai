@@ -4,6 +4,7 @@ import { savePhoto } from '../_storage.js';
 import { analyzeImageWithGemini, analyzeTextDescription, validateImage } from '../_ai-engine.js';
 import { notifyAlert } from '../_notify.js';
 import { DetectedRisk } from '../_types.js';
+import { logger } from '../_logger.js';
 
 /** POST /api/inspections/analyze — AI image/text analysis */
 export const analyzeHandler = async (req: Request, res: Response) => {
@@ -41,7 +42,7 @@ export const analyzeHandler = async (req: Request, res: Response) => {
             analyzedAt: new Date().toISOString(),
         });
     } catch (error: any) {
-        console.error('[ANALYZE] Error:', error);
+        logger.error('inspections', 'Analysis failed', { error: error.message });
         res.status(500).json({ error: error.message || 'AI analysis failed' });
     }
 };
@@ -102,7 +103,7 @@ export const createHandler = async (req: Request, res: Response) => {
 
         res.json({ ok: true, inspectionId: inspection.inspectionId, state: inspection });
     } catch (error: any) {
-        console.error('[CREATE] Error:', error);
+        logger.error('inspections', 'Create inspection failed', { error: error.message });
         res.status(500).json({ error: error.message });
     }
 };
@@ -129,7 +130,7 @@ export const listHandler = async (req: Request, res: Response) => {
 
         res.json({ ok: true, inspections: summary, total, hasMore: (offset ? parseInt(offset as string) : 0) + summary.length < total });
     } catch (error: any) {
-        console.error('[LIST] Error:', error);
+        logger.error('inspections', 'List inspections failed', { error: error.message });
         res.status(500).json({ error: error.message });
     }
 };
@@ -150,6 +151,7 @@ export const getHandler = async (req: Request, res: Response) => {
 
         res.json({ ok: true, inspection });
     } catch (error: any) {
+        logger.error('inspections', 'Get inspection failed', { error: error.message });
         res.status(500).json({ error: error.message });
     }
 };
@@ -197,7 +199,7 @@ export const updateTaskHandler = async (req: Request, res: Response) => {
 
         res.json({ ok: true, inspection: updated });
     } catch (error: any) {
-        console.error('[UPDATE_TASK] Error:', error);
+        logger.error('inspections', 'Update task failed', { error: error.message });
         res.status(500).json({ error: error.message });
     }
 };
@@ -220,6 +222,7 @@ export const deleteHandler = async (req: Request, res: Response) => {
         await deleteInspection(req.params.id as string);
         res.json({ ok: true });
     } catch (error: any) {
+        logger.error('inspections', 'Delete inspection failed', { error: error.message });
         res.status(500).json({ error: error.message });
     }
 };
@@ -231,7 +234,7 @@ export const dashboardHandler = async (req: Request, res: Response) => {
         const stats = await getDashboardStats(user.tenantId);
         res.json({ ok: true, ...stats });
     } catch (error: any) {
-        console.error('[DASHBOARD] Error:', error);
+        logger.error('inspections', 'Dashboard fetch failed', { error: error.message });
         res.status(500).json({ error: error.message });
     }
 };

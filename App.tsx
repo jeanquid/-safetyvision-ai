@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { NewInspection } from './components/NewInspection';
 import { InspectionsList } from './components/InspectionsList';
+import { AdminPanel } from './components/AdminPanel';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginScreen } from './components/LoginScreen';
 import { Loader2 } from 'lucide-react';
@@ -28,6 +29,7 @@ function AppContent() {
                 <NewInspection onComplete={() => setCurrentView('inspections')} />
             )}
             {currentView === 'inspections' && <InspectionsList />}
+            {currentView === 'admin' && <AdminPanel />}
         </Layout>
     );
 }

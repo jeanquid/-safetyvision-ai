@@ -1,6 +1,7 @@
 import { InspectionState, DetectedRisk, CorrectiveTask } from './_types.js';
 import { v4 as uuidv4 } from 'uuid';
 import db from './_db.js';
+import { logger } from './_logger.js';
 
 export async function createInspection(data: {
     tenantId: string;
@@ -37,9 +38,9 @@ export async function createInspection(data: {
             INSERT INTO inspections (inspection_id, tenant_id, user_id, plant, sector, state)
             VALUES ($1, $2, $3, $4, $5, $6)
         `, [inspectionId, data.tenantId, data.userId, data.plant, data.sector, JSON.stringify(state)]);
-        console.log(`✅ [Store] Inspection ${inspectionId} created`);
-    } catch (error) {
-        console.error(`❌ [Store] Failed to create inspection:`, error);
+        logger.info('store', 'Inspection created', { inspectionId, plant: data.plant });
+    } catch (error: any) {
+        logger.error('store', 'Failed to create inspection', { error: error.message });
         throw error;
     }
 
@@ -51,8 +52,8 @@ export async function getInspection(inspectionId: string): Promise<InspectionSta
         const result = await db.query('SELECT state FROM inspections WHERE inspection_id = $1', [inspectionId]);
         if (result.rows.length === 0) return null;
         return result.rows[0].state as InspectionState;
-    } catch (error) {
-        console.error(`❌ [Store] Error fetching inspection ${inspectionId}:`, error);
+    } catch (error: any) {
+        logger.error('store', 'Error fetching inspection', { inspectionId, error: error.message });
         return null;
     }
 }
@@ -72,9 +73,9 @@ export async function updateInspection(
             UPDATE inspections SET state = $1, updated_at = CURRENT_TIMESTAMP
             WHERE inspection_id = $2
         `, [JSON.stringify(ins), inspectionId]);
-        console.log(`✅ [Store] Inspection ${inspectionId} updated`);
-    } catch (error) {
-        console.error(`❌ [Store] Failed to update inspection:`, error);
+        logger.info('store', 'Inspection updated', { inspectionId });
+    } catch (error: any) {
+        logger.error('store', 'Failed to update inspection', { inspectionId, error: error.message });
         throw error;
     }
     return ins;
@@ -110,14 +111,12 @@ export async function listInspections(tenantId: string, filters?: {
 
         const whereClause = conditions.join(' AND ');
 
-        // Contar total (para paginación)
         const countResult = await db.query(
             `SELECT COUNT(*) FROM inspections WHERE ${whereClause}`,
             values
         );
         const total = parseInt(countResult.rows[0].count);
 
-        // Query principal con paginación
         const limit = Math.min(filters?.limit || 50, 100);
         const offset = filters?.offset || 0;
 
@@ -133,8 +132,8 @@ export async function listInspections(tenantId: string, filters?: {
             inspections: result.rows.map(r => r.state as InspectionState),
             total,
         };
-    } catch (error) {
-        console.error(`❌ [Store] Failed to list inspections:`, error);
+    } catch (error: any) {
+        logger.error('store', 'Failed to list inspections', { tenantId, error: error.message });
         return { inspections: [], total: 0 };
     }
 }
@@ -142,16 +141,15 @@ export async function listInspections(tenantId: string, filters?: {
 export async function deleteInspection(inspectionId: string): Promise<void> {
     try {
         await db.query('DELETE FROM inspections WHERE inspection_id = $1', [inspectionId]);
-        console.log(`🗑️  [Store] Inspection ${inspectionId} deleted`);
-    } catch (error) {
-        console.error(`❌ [Store] Failed to delete inspection:`, error);
+        logger.info('store', 'Inspection deleted', { inspectionId });
+    } catch (error: any) {
+        logger.error('store', 'Failed to delete inspection', { inspectionId, error: error.message });
         throw error;
     }
 }
 
 export async function getDashboardStats(tenantId: string): Promise<any> {
     try {
-        // Total de inspecciones y tareas
         const statsQuery = await db.query(`
             SELECT
                 COUNT(*) AS total_inspections,
@@ -164,7 +162,6 @@ export async function getDashboardStats(tenantId: string): Promise<any> {
         const { total_inspections, pending, resolved } = statsQuery.rows[0];
         const total = parseInt(total_inspections) || 1;
 
-        // Riesgos por nivel y categoría (desanidando el JSON array)
         const risksQuery = await db.query(`
             SELECT
                 r->>'level' AS level,
@@ -189,7 +186,6 @@ export async function getDashboardStats(tenantId: string): Promise<any> {
             if (row.level === 'alto') highRisks += count;
         }
 
-        // Top sectores
         const sectorQuery = await db.query(`
             SELECT
                 sector,
@@ -201,7 +197,6 @@ export async function getDashboardStats(tenantId: string): Promise<any> {
             LIMIT 5
         `, [tenantId]);
 
-        // Últimas 10 inspecciones (para la tabla reciente)
         const recentQuery = await db.query(`
             SELECT state FROM inspections
             WHERE tenant_id = $1
@@ -220,8 +215,8 @@ export async function getDashboardStats(tenantId: string): Promise<any> {
             bySector: sectorQuery.rows.map(r => [r.sector, parseInt(r.risk_count)]),
             recentInspections: recentQuery.rows.map(r => r.state),
         };
-    } catch (error) {
-        console.error(`❌ [Store] Dashboard stats failed:`, error);
+    } catch (error: any) {
+        logger.error('store', 'Dashboard stats failed', { tenantId, error: error.message });
         return {
             totalInspections: 0, totalRisks: 0, highRisks: 0,
             pendingTasks: 0, resolvedPct: 0,

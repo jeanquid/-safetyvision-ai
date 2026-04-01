@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft, FileDown } from 'lucide-react';
 
 const LEVEL_STYLE: Record<string, { color: string; bg: string; label: string }> = {
     alto: { color: 'text-red-400', bg: 'bg-red-500/10', label: '🔴 ALTO' },
@@ -97,6 +97,12 @@ export const InspectionsList: React.FC = () => {
                                 <div className="flex-1">
                                     <div className="text-sm text-white">{r.description}</div>
                                     <div className="text-[10px] text-slate-500 mt-0.5 font-mono">{r.confidence}% confianza</div>
+                                    {r.recommendation && (
+                                        <div className="text-xs text-blue-400/80 mt-1 flex items-start gap-1.5">
+                                            <span className="shrink-0 mt-0.5">→</span>
+                                            <span>{r.recommendation}</span>
+                                        </div>
+                                    )}
                                 </div>
                                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${rl.bg} ${rl.color}`}>{rl.label}</span>
                             </div>
@@ -128,6 +134,28 @@ export const InspectionsList: React.FC = () => {
                         </div>
                     )}
                 </div>
+
+                {/* PDF Export */}
+                <button
+                    onClick={async () => {
+                        try {
+                            const res = await authFetch(`/api/inspections/${ins.inspectionId}/pdf`);
+                            if (!res.ok) throw new Error('Error generando PDF');
+                            const blob = await res.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `inspeccion-${ins.inspectionId.substring(0, 8)}.pdf`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        } catch (err) {
+                            alert('Error al generar el PDF');
+                        }
+                    }}
+                    className="w-full py-2.5 bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold hover:bg-slate-700 hover:text-white transition-colors flex items-center justify-center gap-2"
+                >
+                    <FileDown className="w-4 h-4" /> Descargar reporte PDF
+                </button>
             </div>
         );
     }

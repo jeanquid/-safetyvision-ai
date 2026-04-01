@@ -264,6 +264,9 @@ export const NewInspection: React.FC<Props> = ({ onComplete }) => {
                             <div className="flex-1">
                                 <div className="text-sm text-white font-semibold">{r.description}</div>
                                 <div className="text-xs text-slate-500 mt-0.5">{r.category === 'epp' ? 'Seguridad Personal' : r.category === 'condiciones' ? 'Condiciones Inseguras' : 'Comportamiento Riesgoso'}</div>
+                                {r.recommendation && (
+                                    <div className="text-xs text-blue-400/70 mt-1">→ {r.recommendation}</div>
+                                )}
                             </div>
                             <div className="text-right">
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.bg} ${meta.color}`}>{meta.label}</span>

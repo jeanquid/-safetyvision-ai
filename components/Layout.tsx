@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Shield, LayoutDashboard, Camera, ClipboardList, LogOut, Menu, X } from 'lucide-react';
+import { Shield, LayoutDashboard, Camera, ClipboardList, LogOut, Menu, X, Users } from 'lucide-react';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -12,11 +12,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { user, logout } = useAuth();
 
-    const navItems = [
+    const baseNavItems = [
         { key: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', color: 'text-blue-400' },
         { key: 'new', icon: Camera, label: 'Nueva Inspección', color: 'text-emerald-400' },
         { key: 'inspections', icon: ClipboardList, label: 'Inspecciones', color: 'text-amber-400' },
     ];
+
+    const navItems = user?.role === 'admin'
+        ? [...baseNavItems, { key: 'admin', icon: Users, label: 'Usuarios', color: 'text-purple-400' }]
+        : baseNavItems;
 
     return (
         <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
