@@ -1,8 +1,15 @@
 import express from 'express';
 import bodyParser from 'body-parser';
+import rateLimit from 'express-rate-limit';
+import db from './_db.js';
+import { logger } from './_logger.js';
 import { loginHandler } from './_auth/login.js';
 import { meHandler } from './_auth/me.js';
 import { authenticateToken } from './_auth/middleware.js';
+import { getPhoto } from './_storage.js';
+import { listUsersHandler, createUserHandler, deleteUserHandler } from './_auth/admin-handlers.js';
+import { generateInspectionPDF } from './_pdf.js';
+import { getInspection } from './_store.js';
 import {
     analyzeHandler,
     createHandler,
@@ -57,15 +64,41 @@ export async function createApiApp() {
     };
 
     // ── Health ──
-    app.get('/api/ping', (_req, res) => res.json({
-        status: 'ok',
-        platform: 'SafetyVision AI',
-        version: '1.0.0',
-        time: new Date().toISOString()
-    }));
+    app.get('/api/ping', async (_req, res) => {
+        const checks: Record<string, string> = {
+            api: 'ok',
+            database: 'unknown',
+            gemini: process.env.GEMINI_API_KEY ? 'configured' : 'missing',
+        };
+
+        try {
+            await db.query('SELECT 1');
+            checks.database = 'ok';
+        } catch {
+            checks.database = 'error';
+        }
+
+        const allOk = checks.api === 'ok' && checks.database === 'ok';
+
+        res.status(allOk ? 200 : 503).json({
+            status: allOk ? 'ok' : 'degraded',
+            platform: 'SafetyVision AI',
+            version: '1.1.0',
+            checks,
+            time: new Date().toISOString(),
+        });
+    });
 
     // ── Auth Routes ──
-    app.post(['/api/auth/login', '/auth/login'], loginHandler);
+    const loginLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000, // 15 minutos
+        max: 10,                   // máximo 10 intentos por IP
+        message: { ok: false, error: 'Demasiados intentos. Esperá 15 minutos.' },
+        standardHeaders: true,
+        legacyHeaders: false,
+    });
+
+    app.post(['/api/auth/login', '/auth/login'], loginLimiter, loginHandler);
     app.get(['/api/auth/me', '/auth/me'], safeAuth, meHandler);
 
     // ── Inspection Routes ──
@@ -79,8 +112,51 @@ export async function createApiApp() {
     app.use('/api/inspections', insRouter);
     app.use('/inspections', insRouter);
 
+    // ── Photo Serving ──
+    app.get('/api/photos/:id', safeAuth, async (req, res) => {
+        try {
+            const photo = await getPhoto(req.params.id as string);
+            if (!photo) return res.status(404).json({ error: 'Photo not found' });
+
+            const buffer = Buffer.from(photo.data, 'base64');
+            res.setHeader('Content-Type', photo.mimeType);
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            res.send(buffer);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get('/api/inspections/:id/pdf', safeAuth, async (req, res) => {
+        try {
+            const user = (req as any).user;
+            const inspection = await getInspection(req.params.id as string);
+
+            if (!inspection) return res.status(404).json({ error: 'Not found' });
+            if (inspection.tenantId !== user.tenantId) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
+
+            const pdf = await generateInspectionPDF(inspection);
+
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader(
+                'Content-Disposition',
+                `attachment; filename="inspeccion-${inspection.inspectionId.substring(0, 8)}.pdf"`
+            );
+            res.send(pdf);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // ── Dashboard ──
     app.get(['/api/dashboard', '/dashboard'], safeAuth, dashboardHandler);
+
+    // ── Admin Routes ──
+    app.get('/api/users', safeAuth, listUsersHandler);
+    app.post('/api/users', safeAuth, createUserHandler);
+    app.delete('/api/users/:id', safeAuth, deleteUserHandler);
 
     // ── Test Gemini connectivity ──
     app.post(['/api/test-model', '/test-model'], safeAuth, async (req, res) => {
@@ -101,7 +177,7 @@ export async function createApiApp() {
 
     // ── Global Error Handler ──
     app.use((err: any, _req: any, res: any, _next: any) => {
-        console.error('[GLOBAL_ERR]', err);
+        logger.error('express', 'Global server error', { error: err.message, stack: err.stack });
         if (!res.headersSent) {
             res.status(500).json({ error: 'Server error', details: err.message });
         }

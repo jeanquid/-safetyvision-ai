@@ -9,6 +9,7 @@ export interface DetectedRisk {
     description: string;
     level: RiskLevel;
     confidence: number;
+    recommendation?: string; // NUEVO
     status: TaskStatus;
     aiModel?: string;
 }

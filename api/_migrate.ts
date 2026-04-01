@@ -39,6 +39,21 @@ async function migrate() {
         await db.query(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`);
         console.log('✅ Indexes OK.');
 
+        console.log('--- Creating table: photos ---');
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS photos (
+                photo_id UUID PRIMARY KEY,
+                inspection_id UUID NOT NULL,
+                mime_type TEXT NOT NULL,
+                data TEXT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(
+            `CREATE INDEX IF NOT EXISTS idx_photos_inspection ON photos(inspection_id);`
+        );
+        console.log('✅ Table "photos" OK.');
+
         await seedUsers();
         console.log('🎉 Migration completed!');
     } catch (error) {

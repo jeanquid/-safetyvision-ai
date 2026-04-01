@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { createInspection, getInspection, updateInspection, listInspections, deleteInspection, getDashboardStats } from '../_store.js';
-import { analyzeImageWithGemini, analyzeTextDescription } from '../_ai-engine.js';
+import { savePhoto } from '../_storage.js';
+import { analyzeImageWithGemini, analyzeTextDescription, validateImage } from '../_ai-engine.js';
 import { notifyAlert } from '../_notify.js';
 import { DetectedRisk } from '../_types.js';
 
@@ -12,6 +13,18 @@ export const analyzeHandler = async (req: Request, res: Response) => {
 
         if (!imageBase64 && !description) {
             return res.status(400).json({ error: 'imageBase64 or description required' });
+        }
+
+        // --- PHASE 4: Industrial Validation ---
+        if (imageBase64) {
+            const validation = await validateImage(imageBase64, mimeType || 'image/jpeg');
+            if (!validation.valid) {
+                return res.status(400).json({
+                    ok: false,
+                    error: 'La imagen no parece ser de un entorno laboral o industrial.',
+                    reason: validation.reason,
+                });
+            }
         }
 
         let result;
@@ -70,6 +83,23 @@ export const createHandler = async (req: Request, res: Response) => {
             });
         }
 
+        // --- PHASE 2: Persist photo if present ---
+        let photoId: string | undefined;
+        if (req.body.imageBase64) {
+            photoId = await savePhoto(
+                inspection.inspectionId,
+                req.body.imageBase64,
+                req.body.mimeType || 'image/jpeg'
+            );
+        }
+
+        // Actualizar el state con la referencia a la foto
+        if (photoId) {
+            await updateInspection(inspection.inspectionId, (ins) => {
+                ins.photoUrl = `photo:${photoId}`;
+            });
+        }
+
         res.json({ ok: true, inspectionId: inspection.inspectionId, state: inspection });
     } catch (error: any) {
         console.error('[CREATE] Error:', error);
@@ -81,13 +111,14 @@ export const createHandler = async (req: Request, res: Response) => {
 export const listHandler = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const { plant, status, level, limit } = req.query;
+        const { plant, status, level, limit, offset } = req.query;
 
-        const inspections = await listInspections(user.tenantId, {
+        const { inspections, total } = await listInspections(user.tenantId, {
             plant: plant as string,
             status: status as string,
             level: level as string,
-            limit: limit ? parseInt(limit as string) : undefined,
+            limit: limit ? parseInt(limit as string) : 50,
+            offset: offset ? parseInt(offset as string) : 0,
         });
 
         // Return summary (no heavy base64 photos)
@@ -96,7 +127,7 @@ export const listHandler = async (req: Request, res: Response) => {
             photoUrl: i.photoUrl ? '[has_photo]' : null,
         }));
 
-        res.json({ ok: true, inspections: summary, total: inspections.length });
+        res.json({ ok: true, inspections: summary, total, hasMore: (offset ? parseInt(offset as string) : 0) + summary.length < total });
     } catch (error: any) {
         console.error('[LIST] Error:', error);
         res.status(500).json({ error: error.message });
@@ -106,9 +137,16 @@ export const listHandler = async (req: Request, res: Response) => {
 /** GET /api/inspections/:id */
 export const getHandler = async (req: Request, res: Response) => {
     try {
+        const user = (req as any).user;
         const id = req.params.id as string;
         const inspection = await getInspection(id);
+
         if (!inspection) return res.status(404).json({ error: 'Inspection not found' });
+
+        // CRITICAL: validar que pertenece al tenant del usuario
+        if (inspection.tenantId !== user.tenantId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
 
         res.json({ ok: true, inspection });
     } catch (error: any) {
@@ -122,6 +160,13 @@ export const updateTaskHandler = async (req: Request, res: Response) => {
         const id = req.params.id as string;
         const user = (req as any).user;
         const { status, notes } = req.body;
+
+        // Validar tenant ANTES de actualizar
+        const existing = await getInspection(id);
+        if (!existing) return res.status(404).json({ error: 'Inspection not found' });
+        if (existing.tenantId !== user.tenantId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
 
         if (!['pendiente', 'en_progreso', 'resuelto'].includes(status)) {
             return res.status(400).json({ error: 'Invalid status' });
@@ -164,6 +209,14 @@ export const deleteHandler = async (req: Request, res: Response) => {
         if (user.role !== 'admin') {
             return res.status(403).json({ error: 'Only admins can delete inspections' });
         }
+
+        // Validar tenant
+        const existing = await getInspection(req.params.id as string);
+        if (!existing) return res.status(404).json({ error: 'Inspection not found' });
+        if (existing.tenantId !== user.tenantId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
         await deleteInspection(req.params.id as string);
         res.json({ ok: true });
     } catch (error: any) {

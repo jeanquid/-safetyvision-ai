@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Camera, Upload, Loader2, AlertTriangle, CheckCircle, Send, FileText } from 'lucide-react';
+import { PLANTS } from '../config';
 
 const RISK_META: Record<string, { color: string; bg: string; label: string }> = {
     alto: { color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', label: 'ALTO' },
@@ -29,6 +30,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete }) => {
     const [risks, setRisks] = useState<any[]>([]);
     const [aiModel, setAiModel] = useState('');
     const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
     const [error, setError] = useState('');
 
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,8 +88,16 @@ export const NewInspection: React.FC<Props> = ({ onComplete }) => {
                 return (order[r.level] || 0) > (order[h] || 0) ? r.level : h;
             }, 'bajo');
 
+            // Generar acción legible
+            const riskSummary = risks.length === 1
+                ? `Corregir: ${risks[0].description}`
+                : `Corregir ${risks.length} riesgos detectados: ${risks
+                    .slice(0, 3)
+                    .map((r: any) => r.recommendation || r.description)
+                    .join('; ')}${risks.length > 3 ? ` (+${risks.length - 3} más)` : ''}`;
+
             const task = {
-                action: risks.map((r: any) => r.description).join(' + Corregir: '),
+                action: riskSummary,
                 responsible: 'Supervisor de turno',
                 deadline: highestLevel === 'alto' ? '4 hs' : highestLevel === 'medio' ? '24 hs' : '48 hs',
                 status: 'pendiente',
@@ -97,18 +107,33 @@ export const NewInspection: React.FC<Props> = ({ onComplete }) => {
                 method: 'POST',
                 body: JSON.stringify({
                     plant, sector, operator, risks, task,
+                    imageBase64, mimeType, // Add for Phase 2 persistence
                     aiAnalysis: { model: aiModel, analyzedAt: new Date().toISOString() },
                 }),
             });
             const data = await res.json();
             if (!res.ok || !data.ok) throw new Error(data.error || 'Save failed');
 
-            onComplete();
+            setSaved(true);
+            setTimeout(() => onComplete(), 1500);
         } catch (err: any) {
             setError(err.message);
         }
         setSaving(false);
     };
+
+    // ── SUCCESS ──
+    if (saved) {
+        return (
+            <div className="max-w-md mx-auto text-center py-20">
+                <div className="text-5xl mb-4">✅</div>
+                <h2 className="text-xl font-bold text-white mb-2">Inspección Guardada</h2>
+                <p className="text-slate-500 text-sm">
+                    La tarea correctiva fue asignada y las alertas enviadas.
+                </p>
+            </div>
+        );
+    }
 
     // ── FORM ──
     if (step === 'form') {
@@ -129,18 +154,20 @@ export const NewInspection: React.FC<Props> = ({ onComplete }) => {
                 <div className="grid grid-cols-2 gap-3">
                     <div>
                         <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Planta</label>
-                        <select value={plant} onChange={e => setPlant(e.target.value)}
+                        <select value={plant} onChange={e => { setPlant(e.target.value); setSector(''); }}
                             className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
-                            <option>Planta Norte</option>
-                            <option>Planta Sur</option>
-                            <option>Planta Central</option>
-                            <option>Obra Externa</option>
+                            {PLANTS.map(p => <option key={p.name}>{p.name}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Sector</label>
-                        <input value={sector} onChange={e => setSector(e.target.value)} placeholder="Ej: Producción L3"
-                            className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500" />
+                        <select value={sector} onChange={e => setSector(e.target.value)}
+                            className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                            <option value="">Seleccionar sector...</option>
+                            {(PLANTS.find(p => p.name === plant)?.sectors || []).map(s =>
+                                <option key={s}>{s}</option>
+                            )}
+                        </select>
                     </div>
                 </div>
 

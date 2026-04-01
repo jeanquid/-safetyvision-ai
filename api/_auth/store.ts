@@ -49,14 +49,14 @@ export async function seedUsers() {
     const usersToSeed = [
         {
             email: process.env.SEED_ADMIN_EMAIL || 'admin@safetyvision.ai',
-            password: 'seguridad1', // Hardcoded as requested for local/dev fix
+            password: process.env.SEED_ADMIN_PASSWORD, // NUNCA hardcodear
             role: 'admin' as const,
             tenantId: 'sv-demo',
             displayName: 'Administrador'
         },
         {
             email: process.env.SEED_INSPECTOR_EMAIL || 'inspector@safetyvision.ai',
-            password: 'seguridad1',
+            password: process.env.SEED_INSPECTOR_PASSWORD, // NUNCA hardcodear
             role: 'inspector' as const,
             tenantId: 'sv-demo',
             displayName: 'Inspector de Seguridad'
@@ -65,23 +65,21 @@ export async function seedUsers() {
 
     for (const u of usersToSeed) {
         try {
-            console.log(`--- Seeding user: ${u.email} ---`);
-            const existing = await getUserByEmail(u.email);
-            if (!existing) {
-                console.log(`Hashing password for ${u.email}...`);
-                const passwordHash = await bcrypt.hash(u.password!, 10);
-                console.log(`Inserting ${u.email} into DB...`);
-                await db.query(`
-                    INSERT INTO users (id, email, password_hash, role, tenant_id, display_name)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                `, [uuidv4(), u.email, passwordHash, u.role, u.tenantId, u.displayName]);
-                console.log(`✅ User ${u.email} seeded.`);
-            } else {
-                console.log(`ℹ️  User ${u.email} already exists — updating password hash if needed.`);
-                const passwordHash = await bcrypt.hash(u.password!, 10);
-                await db.query('UPDATE users SET password_hash = $1 WHERE email = $2', [passwordHash, u.email]);
-                console.log(`✅ User ${u.email} password updated.`);
+            if (!u.password) {
+                console.warn(`⚠️  Skipping ${u.email}: no password in env vars`);
+                continue;
             }
+            const existing = await getUserByEmail(u.email);
+            if (existing) {
+                console.log(`ℹ️  User ${u.email} already exists — skipping (no overwrite)`);
+                continue;
+            }
+            const passwordHash = await bcrypt.hash(u.password, 12); // subir rounds de 10 a 12
+            await db.query(`
+                INSERT INTO users (id, email, password_hash, role, tenant_id, display_name)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            `, [uuidv4(), u.email, passwordHash, u.role, u.tenantId, u.displayName]);
+            console.log(`✅ User ${u.email} seeded.`);
         } catch (error) {
             console.error(`❌ Failed to seed user ${u.email}:`, error);
         }

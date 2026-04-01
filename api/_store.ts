@@ -85,36 +85,57 @@ export async function listInspections(tenantId: string, filters?: {
     status?: string;
     level?: string;
     limit?: number;
-}): Promise<InspectionState[]> {
+    offset?: number;
+}): Promise<{ inspections: InspectionState[]; total: number }> {
     try {
-        let query = 'SELECT state FROM inspections WHERE tenant_id = $1 ORDER BY created_at DESC';
+        const conditions: string[] = ['tenant_id = $1'];
         const values: any[] = [tenantId];
+        let paramIndex = 2;
 
-        if (filters?.limit) {
-            query += ` LIMIT $2`;
-            values.push(filters.limit);
-        }
-
-        const result = await db.query(query, values);
-        let inspections = result.rows.map(r => r.state as InspectionState);
-
-        // In-memory filters on JSONB state
         if (filters?.plant) {
-            inspections = inspections.filter(i => i.plant === filters.plant);
+            conditions.push(`plant = $${paramIndex++}`);
+            values.push(filters.plant);
         }
         if (filters?.status) {
-            inspections = inspections.filter(i => i.task.status === filters.status);
+            conditions.push(`state->'task'->>'status' = $${paramIndex++}`);
+            values.push(filters.status);
         }
         if (filters?.level) {
-            inspections = inspections.filter(i =>
-                i.risks.some(r => r.level === filters.level)
-            );
+            conditions.push(`EXISTS (
+                SELECT 1 FROM jsonb_array_elements(state->'risks') AS r
+                WHERE r->>'level' = $${paramIndex++}
+            )`);
+            values.push(filters.level);
         }
 
-        return inspections;
+        const whereClause = conditions.join(' AND ');
+
+        // Contar total (para paginación)
+        const countResult = await db.query(
+            `SELECT COUNT(*) FROM inspections WHERE ${whereClause}`,
+            values
+        );
+        const total = parseInt(countResult.rows[0].count);
+
+        // Query principal con paginación
+        const limit = Math.min(filters?.limit || 50, 100);
+        const offset = filters?.offset || 0;
+
+        const result = await db.query(
+            `SELECT state FROM inspections
+             WHERE ${whereClause}
+             ORDER BY created_at DESC
+             LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
+            [...values, limit, offset]
+        );
+
+        return {
+            inspections: result.rows.map(r => r.state as InspectionState),
+            total,
+        };
     } catch (error) {
         console.error(`❌ [Store] Failed to list inspections:`, error);
-        return [];
+        return { inspections: [], total: 0 };
     }
 }
 
@@ -129,38 +150,83 @@ export async function deleteInspection(inspectionId: string): Promise<void> {
 }
 
 export async function getDashboardStats(tenantId: string): Promise<any> {
-    const inspections = await listInspections(tenantId);
+    try {
+        // Total de inspecciones y tareas
+        const statsQuery = await db.query(`
+            SELECT
+                COUNT(*) AS total_inspections,
+                COUNT(*) FILTER (WHERE state->'task'->>'status' = 'pendiente') AS pending,
+                COUNT(*) FILTER (WHERE state->'task'->>'status' = 'resuelto') AS resolved
+            FROM inspections
+            WHERE tenant_id = $1
+        `, [tenantId]);
 
-    const totalRisks = inspections.reduce((s, i) => s + i.risks.length, 0);
-    const highRisks = inspections.reduce((s, i) => s + i.risks.filter(r => r.level === 'alto').length, 0);
-    const pending = inspections.filter(i => i.task.status === 'pendiente').length;
-    const resolved = inspections.filter(i => i.task.status === 'resuelto').length;
-    const total = inspections.length || 1;
+        const { total_inspections, pending, resolved } = statsQuery.rows[0];
+        const total = parseInt(total_inspections) || 1;
 
-    const byCategory: Record<string, number> = { epp: 0, condiciones: 0, comportamiento: 0 };
-    const byLevel: Record<string, number> = { alto: 0, medio: 0, bajo: 0 };
-    const byPlant: Record<string, number> = {};
-    const bySector: Record<string, number> = {};
+        // Riesgos por nivel y categoría (desanidando el JSON array)
+        const risksQuery = await db.query(`
+            SELECT
+                r->>'level' AS level,
+                r->>'category' AS category,
+                COUNT(*) AS count
+            FROM inspections,
+                 jsonb_array_elements(state->'risks') AS r
+            WHERE tenant_id = $1
+            GROUP BY r->>'level', r->>'category'
+        `, [tenantId]);
 
-    inspections.forEach(ins => {
-        byPlant[ins.plant] = (byPlant[ins.plant] || 0) + ins.risks.length;
-        bySector[ins.sector] = (bySector[ins.sector] || 0) + ins.risks.length;
-        ins.risks.forEach(r => {
-            byCategory[r.category] = (byCategory[r.category] || 0) + 1;
-            byLevel[r.level] = (byLevel[r.level] || 0) + 1;
-        });
-    });
+        const byCategory: Record<string, number> = { epp: 0, condiciones: 0, comportamiento: 0 };
+        const byLevel: Record<string, number> = { alto: 0, medio: 0, bajo: 0 };
+        let totalRisks = 0;
+        let highRisks = 0;
 
-    return {
-        totalInspections: inspections.length,
-        totalRisks,
-        highRisks,
-        pendingTasks: pending,
-        resolvedPct: Math.round((resolved / total) * 100),
-        byCategory,
-        byLevel,
-        byPlant,
-        bySector: Object.entries(bySector).sort((a, b) => b[1] - a[1]),
-        recentInspections: inspections.slice(0, 10),
-    };
+        for (const row of risksQuery.rows) {
+            const count = parseInt(row.count);
+            totalRisks += count;
+            if (row.level) byLevel[row.level] = (byLevel[row.level] || 0) + count;
+            if (row.category) byCategory[row.category] = (byCategory[row.category] || 0) + count;
+            if (row.level === 'alto') highRisks += count;
+        }
+
+        // Top sectores
+        const sectorQuery = await db.query(`
+            SELECT
+                sector,
+                SUM(jsonb_array_length(state->'risks')) AS risk_count
+            FROM inspections
+            WHERE tenant_id = $1
+            GROUP BY sector
+            ORDER BY risk_count DESC
+            LIMIT 5
+        `, [tenantId]);
+
+        // Últimas 10 inspecciones (para la tabla reciente)
+        const recentQuery = await db.query(`
+            SELECT state FROM inspections
+            WHERE tenant_id = $1
+            ORDER BY created_at DESC
+            LIMIT 10
+        `, [tenantId]);
+
+        return {
+            totalInspections: parseInt(total_inspections),
+            totalRisks,
+            highRisks,
+            pendingTasks: parseInt(pending),
+            resolvedPct: Math.round((parseInt(resolved) / total) * 100),
+            byCategory,
+            byLevel,
+            bySector: sectorQuery.rows.map(r => [r.sector, parseInt(r.risk_count)]),
+            recentInspections: recentQuery.rows.map(r => r.state),
+        };
+    } catch (error) {
+        console.error(`❌ [Store] Dashboard stats failed:`, error);
+        return {
+            totalInspections: 0, totalRisks: 0, highRisks: 0,
+            pendingTasks: 0, resolvedPct: 0,
+            byCategory: {}, byLevel: {}, bySector: [],
+            recentInspections: [],
+        };
+    }
 }
