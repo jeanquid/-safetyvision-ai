@@ -99,7 +99,7 @@ export async function listInspections(tenantId: string, filters?: {
         let paramIndex = 2;
 
         if (filters?.companyId) {
-            conditions.push(`(company_id = $${paramIndex} OR state->>'companyId' = $${paramIndex})`);
+            conditions.push(`(company_id::text = $${paramIndex} OR state->>'companyId' = $${paramIndex})`);
             values.push(filters.companyId);
             paramIndex++;
         }
@@ -161,7 +161,7 @@ export async function deleteInspection(inspectionId: string): Promise<void> {
 
 export async function getDashboardStats(tenantId: string, companyId?: string): Promise<any> {
     try {
-        const companyFilter = companyId ? ` AND (company_id = $2 OR state->>'companyId' = $2)` : '';
+        const companyFilter = companyId ? ` AND (company_id::text = $2 OR state->>'companyId' = $2)` : '';
         const params = companyId ? [tenantId, companyId] : [tenantId];
 
         const statsQuery = await db.query(`
