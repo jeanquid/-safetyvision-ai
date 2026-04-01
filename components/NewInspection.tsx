@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Camera, Upload, Loader2, AlertTriangle, CheckCircle, Send, FileText } from 'lucide-react';
-import { PLANTS } from '../config';
+import { useEffect } from 'react';
 
 const RISK_META: Record<string, { color: string; bg: string; label: string }> = {
     alto: { color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', label: 'ALTO' },
@@ -32,6 +32,29 @@ export const NewInspection: React.FC<Props> = ({ onComplete }) => {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState('');
+    const [plants, setPlants] = useState<{ name: string; sectors: string[] }[]>([]);
+    const [configLoading, setConfigLoading] = useState(true);
+
+    // Cargar configuración al montar:
+    useEffect(() => {
+        const loadConfig = async () => {
+            try {
+                const res = await authFetch('/api/config');
+                const data = await res.json();
+                if (data.ok && data.tenant?.plants) {
+                    setPlants(data.tenant.plants);
+                    // Setear la primera planta como default
+                    if (data.tenant.plants.length > 0 && !plant) {
+                        setPlant(data.tenant.plants[0].name);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load config:', err);
+            }
+            setConfigLoading(false);
+        };
+        loadConfig();
+    }, []);
 
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -156,7 +179,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete }) => {
                         <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Planta</label>
                         <select value={plant} onChange={e => { setPlant(e.target.value); setSector(''); }}
                             className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
-                            {PLANTS.map(p => <option key={p.name}>{p.name}</option>)}
+                            {plants.map(p => <option key={p.name}>{p.name}</option>)}
                         </select>
                     </div>
                     <div>
@@ -164,7 +187,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete }) => {
                         <select value={sector} onChange={e => setSector(e.target.value)}
                             className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
                             <option value="">Seleccionar sector...</option>
-                            {(PLANTS.find(p => p.name === plant)?.sectors || []).map(s =>
+                            {(plants.find(p => p.name === plant)?.sectors || []).map(s =>
                                 <option key={s}>{s}</option>
                             )}
                         </select>

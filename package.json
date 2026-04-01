@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "start": "node api/server.js",
     "migrate": "tsx api/_migrate.ts",
+    "seed": "tsx api/_auth/store.ts",
+    "onboard": "tsx scripts/onboard-tenant.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

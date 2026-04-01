@@ -54,6 +54,36 @@ async function migrate() {
         );
         console.log('✅ Table "photos" OK.');
 
+        console.log('--- Creating table: tenants ---');
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS tenants (
+                tenant_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                plants JSONB NOT NULL DEFAULT '[]',
+                settings JSONB NOT NULL DEFAULT '{}',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('✅ Table "tenants" OK.');
+
+        // Seed del tenant demo
+        await db.query(`
+            INSERT INTO tenants (tenant_id, name, plants)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (tenant_id) DO NOTHING
+        `, [
+            'sv-demo',
+            'SafetyVision Demo',
+            JSON.stringify([
+                { name: 'Planta Norte', sectors: ['Producción L1', 'Producción L2', 'Almacén', 'Despacho', 'Mantenimiento'] },
+                { name: 'Planta Sur', sectors: ['Producción', 'Envasado', 'Depósito', 'Laboratorio'] },
+                { name: 'Planta Central', sectors: ['Oficinas', 'Producción', 'Calderas', 'Subestación eléctrica'] },
+                { name: 'Obra Externa', sectors: ['Frente de obra', 'Obrador', 'Acopio'] },
+            ])
+        ]);
+        console.log('✅ Tenant "sv-demo" seeded.');
+
         await seedUsers();
         console.log('🎉 Migration completed!');
     } catch (error) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft, FileDown } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft, FileDown, Camera } from 'lucide-react';
 
 const LEVEL_STYLE: Record<string, { color: string; bg: string; label: string }> = {
     alto: { color: 'text-red-400', bg: 'bg-red-500/10', label: '🔴 ALTO' },
@@ -21,6 +21,8 @@ export const InspectionsList: React.FC = () => {
     const [filter, setFilter] = useState('all');
     const [selected, setSelected] = useState<any>(null);
     const [updating, setUpdating] = useState(false);
+    const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+    const [photoLoading, setPhotoLoading] = useState(false);
 
     const fetchList = async () => {
         setLoading(true);
@@ -72,7 +74,13 @@ export const InspectionsList: React.FC = () => {
 
         return (
             <div className="space-y-5">
-                <button onClick={() => setSelected(null)} className="flex items-center gap-1 text-blue-400 text-sm font-semibold hover:text-blue-300">
+                <button onClick={() => {
+                    setSelected(null);
+                    if (photoUrl) {
+                        URL.revokeObjectURL(photoUrl);
+                        setPhotoUrl(null);
+                    }
+                }} className="flex items-center gap-1 text-blue-400 text-sm font-semibold hover:text-blue-300">
                     <ArrowLeft className="w-4 h-4" /> Volver
                 </button>
 
@@ -85,6 +93,41 @@ export const InspectionsList: React.FC = () => {
                     <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${ls.bg} ${ls.color}`}>{ls.label}</span>
                     <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${ts.bg} ${ts.color}`}>{ts.label}</span>
                 </div>
+
+                {/* Foto de la inspección — entre la info general y los riesgos */}
+                {photoLoading ? (
+                    <div className="flex items-center justify-center h-48 bg-slate-900/30 border border-slate-800 rounded-xl">
+                        <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                    </div>
+                ) : photoUrl ? (
+                    <div className="rounded-xl overflow-hidden border border-slate-800">
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider px-3 py-2 bg-slate-900/50 flex items-center gap-1.5">
+                            <Camera className="w-3 h-3" />
+                            Evidencia fotográfica
+                        </div>
+                        <img
+                            src={photoUrl}
+                            alt="Foto de inspección"
+                            className="w-full max-h-80 object-contain bg-black/30 cursor-pointer"
+                            onClick={() => {
+                                // Abrir foto en tamaño completo
+                                const w = window.open('');
+                                if (w) {
+                                    w.document.write(`
+                                        <html><head><title>Inspección ${ins.inspectionId?.substring(0, 8)}</title>
+                                        <style>body{margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+                                        img{max-width:100%;max-height:100vh;object-fit:contain;}</style></head>
+                                        <body><img src="${photoUrl}"/></body></html>
+                                    `);
+                                }
+                            }}
+                        />
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-center h-24 bg-slate-900/20 border border-dashed border-slate-800 rounded-xl">
+                        <span className="text-xs text-slate-600">Sin evidencia fotográfica</span>
+                    </div>
+                )}
 
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Riesgos Detectados</h3>
                 <div className="space-y-2">
@@ -199,7 +242,30 @@ export const InspectionsList: React.FC = () => {
                         const ts = STATUS_STYLE[ins.task?.status] || STATUS_STYLE.pendiente;
 
                         return (
-                            <div key={ins.inspectionId} onClick={() => setSelected(ins)}
+                            <div key={ins.inspectionId} onClick={async () => {
+                                setSelected(ins);
+                                setPhotoUrl(null);
+                                // Cargar detalle completo con foto resuelta
+                                try {
+                                    setPhotoLoading(true);
+                                    const res = await authFetch(`/api/inspections/${ins.inspectionId}`);
+                                    const data = await res.json();
+                                    if (data.ok && data.inspection) {
+                                        setSelected(data.inspection);
+                                        // Si hay foto, cargarla como blob para mostrarla
+                                        if (data.inspection.resolvedPhotoUrl) {
+                                            const photoRes = await authFetch(data.inspection.resolvedPhotoUrl);
+                                            if (photoRes.ok) {
+                                                const blob = await photoRes.blob();
+                                                setPhotoUrl(URL.createObjectURL(blob));
+                                            }
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.error('Error loading inspection detail:', err);
+                                }
+                                setPhotoLoading(false);
+                            }}
                                 className="flex items-center gap-4 p-4 bg-slate-900/30 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-800/50 transition-colors"
                                 style={{ borderLeftWidth: 3, borderLeftColor: maxLevel === 'alto' ? '#EF4444' : maxLevel === 'medio' ? '#F59E0B' : '#22C55E' }}>
                                 <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center text-lg shrink-0">📸</div>

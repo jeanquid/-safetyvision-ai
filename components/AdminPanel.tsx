@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
     Users as UsersIcon, Plus, Trash2, Loader2, AlertCircle,
-    CheckCircle, Shield, Eye, UserPlus, X
+    CheckCircle, Shield, Eye, UserPlus, X, Building
 } from 'lucide-react';
 
 interface UserRecord {
@@ -22,24 +22,47 @@ export const AdminPanel: React.FC = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    // Form state
+    // Tab state
+    const [activeTab, setActiveTab] = useState<'users' | 'plants'>('users');
+    const [tenantPlants, setTenantPlants] = useState<{ name: string; sectors: string[] }[]>([]);
+    const [plantsLoading, setPlantsLoading] = useState(true);
+    const [plantsSaving, setPlantsSaving] = useState(false);
+    const [tenantName, setTenantName] = useState('');
+
+    // Form state: Users
     const [newEmail, setNewEmail] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [newRole, setNewRole] = useState<'inspector' | 'supervisor' | 'admin'>('inspector');
     const [newName, setNewName] = useState('');
     const [creating, setCreating] = useState(false);
 
-    const fetchUsers = async () => {
+    // Form state: Plants
+    const [newPlantName, setNewPlantName] = useState('');
+    const [newPlantSectors, setNewPlantSectors] = useState('');
+
+    const fetchData = async () => {
         setLoading(true);
+        setPlantsLoading(true);
         try {
-            const res = await authFetch('/api/users');
-            const data = await res.json();
-            if (data.ok) setUsers(data.users || []);
+            const [usersRes, configRes] = await Promise.all([
+                authFetch('/api/users'),
+                authFetch('/api/config')
+            ]);
+            
+            const usersData = await usersRes.json();
+            if (usersData.ok) setUsers(usersData.users || []);
+
+            const configData = await configRes.json();
+            if (configData.ok && configData.tenant) {
+                setTenantPlants(configData.tenant.plants || []);
+                setTenantName(configData.tenant.name || '');
+            }
         } catch {}
         setLoading(false);
+        setPlantsLoading(false);
     };
 
-    useEffect(() => { fetchUsers(); }, []);
+    useEffect(() => { fetchData(); }, []);
 
     const handleCreate = async () => {
         if (!newEmail || !newPassword) {
@@ -72,7 +95,7 @@ export const AdminPanel: React.FC = () => {
             setNewName('');
             setNewRole('inspector');
             setShowForm(false);
-            fetchUsers();
+            fetchData();
             setTimeout(() => setSuccess(''), 3000);
         } catch (err: any) {
             setError(err.message);
@@ -88,11 +111,73 @@ export const AdminPanel: React.FC = () => {
             const res = await authFetch(`/api/users/${userId}`, { method: 'DELETE' });
             const data = await res.json();
             if (!res.ok || !data.ok) throw new Error(data.error || 'Error al eliminar');
-            fetchUsers();
+            fetchData();
         } catch (err: any) {
             setError(err.message);
         }
         setDeleting(null);
+    };
+
+    const handleAddPlant = () => {
+        if (!newPlantName.trim()) {
+            setError('El nombre de la planta es obligatorio');
+            return;
+        }
+        const sectors = newPlantSectors
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+        if (sectors.length === 0) {
+            setError('Agregá al menos un sector (separados por coma)');
+            return;
+        }
+
+        setTenantPlants(prev => [...prev, { name: newPlantName.trim(), sectors }]);
+        setNewPlantName('');
+        setNewPlantSectors('');
+        setError('');
+    };
+
+    const handleRemovePlant = (plantName: string) => {
+        setTenantPlants(prev => prev.filter(p => p.name !== plantName));
+    };
+
+    const handleRemoveSector = (plantName: string, sectorName: string) => {
+        setTenantPlants(prev => prev.map(p => {
+            if (p.name !== plantName) return p;
+            return { ...p, sectors: p.sectors.filter(s => s !== sectorName) };
+        }));
+    };
+
+    const handleAddSector = (plantName: string, sector: string) => {
+        if (!sector.trim()) return;
+        setTenantPlants(prev => prev.map(p => {
+            if (p.name !== plantName) return p;
+            if (p.sectors.includes(sector.trim())) return p;
+            return { ...p, sectors: [...p.sectors, sector.trim()] };
+        }));
+    };
+
+    const handleSavePlants = async () => {
+        if (tenantPlants.length === 0) {
+            setError('Debe haber al menos una planta');
+            return;
+        }
+        setPlantsSaving(true);
+        setError('');
+        try {
+            const res = await authFetch('/api/config/plants', {
+                method: 'PUT',
+                body: JSON.stringify({ plants: tenantPlants }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al guardar');
+            setSuccess('Configuración de plantas guardada');
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err: any) {
+            setError(err.message);
+        }
+        setPlantsSaving(false);
     };
 
     const ROLE_STYLE: Record<string, { color: string; bg: string; label: string }> = {
@@ -116,15 +201,34 @@ export const AdminPanel: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-bold text-white">Gestión de Usuarios</h2>
-                    <p className="text-slate-500 text-sm mt-0.5">{users.length} usuario{users.length !== 1 ? 's' : ''} en el sistema</p>
+                    <h2 className="text-xl font-bold text-white">Panel de Administración</h2>
+                    <p className="text-slate-500 text-sm mt-0.5">{tenantName || 'Gestioná tu empresa'}</p>
                 </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 border-b border-slate-800 pb-3">
                 <button
-                    onClick={() => { setShowForm(!showForm); setError(''); }}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-colors"
+                    onClick={() => { setActiveTab('users'); setError(''); setSuccess(''); }}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
+                        activeTab === 'users'
+                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
+                            : 'text-slate-500 hover:text-white hover:bg-slate-800 border border-transparent'
+                    }`}
                 >
-                    {showForm ? <X className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                    {showForm ? 'Cancelar' : 'Nuevo Usuario'}
+                    <UsersIcon className="w-4 h-4" />
+                    Usuarios
+                </button>
+                <button
+                    onClick={() => { setActiveTab('plants'); setError(''); setSuccess(''); }}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
+                        activeTab === 'plants'
+                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
+                            : 'text-slate-500 hover:text-white hover:bg-slate-800 border border-transparent'
+                    }`}
+                >
+                    <Building className="w-4 h-4" />
+                    Plantas y Sectores
                 </button>
             </div>
 
@@ -143,122 +247,217 @@ export const AdminPanel: React.FC = () => {
                 </div>
             )}
 
-            {/* Create form */}
-            {showForm && (
-                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-4">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Crear nuevo usuario</h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Email *</label>
-                            <input
-                                type="email"
-                                value={newEmail}
-                                onChange={e => setNewEmail(e.target.value)}
-                                placeholder="usuario@empresa.com"
-                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Contraseña * (min 8 chars)</label>
-                            <input
-                                type="password"
-                                value={newPassword}
-                                onChange={e => setNewPassword(e.target.value)}
-                                placeholder="••••••••"
-                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Nombre</label>
-                            <input
-                                type="text"
-                                value={newName}
-                                onChange={e => setNewName(e.target.value)}
-                                placeholder="Nombre completo"
-                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Rol</label>
-                            <select
-                                value={newRole}
-                                onChange={e => setNewRole(e.target.value as any)}
-                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
-                            >
-                                <option value="inspector">Inspector</option>
-                                <option value="supervisor">Supervisor</option>
-                                <option value="admin">Administrador</option>
-                            </select>
-                        </div>
+            {activeTab === 'users' && (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Lista de Usuarios ({users.length})</h3>
+                        <button
+                            onClick={() => { setShowForm(!showForm); setError(''); }}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600/10 text-blue-400 border border-blue-500/20 text-xs font-semibold rounded-lg hover:bg-blue-600/20 transition-all"
+                        >
+                            {showForm ? <X className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
+                            {showForm ? 'Cancelar' : 'Nuevo Usuario'}
+                        </button>
                     </div>
 
-                    <button
-                        onClick={handleCreate}
-                        disabled={creating}
-                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-                    >
-                        {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                        {creating ? 'Creando...' : 'Crear Usuario'}
-                    </button>
+                    {/* Create form */}
+                    {showForm && (
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Email *</label>
+                                    <input
+                                        type="email"
+                                        value={newEmail}
+                                        onChange={e => setNewEmail(e.target.value)}
+                                        placeholder="usuario@empresa.com"
+                                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Contraseña * (min 8 chars)</label>
+                                    <input
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={e => setNewPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Nombre</label>
+                                    <input
+                                        type="text"
+                                        value={newName}
+                                        onChange={e => setNewName(e.target.value)}
+                                        placeholder="Nombre completo"
+                                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Rol</label>
+                                    <select
+                                        value={newRole}
+                                        onChange={e => setNewRole(e.target.value as any)}
+                                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                    >
+                                        <option value="inspector">Inspector</option>
+                                        <option value="supervisor">Supervisor</option>
+                                        <option value="admin">Administrador</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleCreate}
+                                disabled={creating}
+                                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                            >
+                                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                {creating ? 'Creando...' : 'Crear Usuario'}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* User list */}
+                    {loading ? (
+                        <div className="flex items-center justify-center h-40">
+                            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {users.map(u => {
+                                const rs = ROLE_STYLE[u.role] || ROLE_STYLE.inspector;
+                                const isCurrentUser = u.id === user?.id;
+
+                                return (
+                                    <div key={u.id}
+                                        className="flex items-center gap-4 p-4 bg-slate-900/30 border border-slate-800 rounded-xl"
+                                    >
+                                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-sm font-bold text-blue-400 shrink-0">
+                                            {(u.display_name || u.email)[0].toUpperCase()}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-semibold text-white truncate">
+                                                    {u.display_name || u.email.split('@')[0]}
+                                                </span>
+                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${rs.bg} ${rs.color}`}>
+                                                    {rs.label}
+                                                </span>
+                                            </div>
+                                            <div className="text-xs text-slate-500 truncate">{u.email}</div>
+                                        </div>
+                                        {!isCurrentUser && (
+                                            <button
+                                                onClick={() => handleDelete(u.id, u.email)}
+                                                disabled={deleting === u.id}
+                                                className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/5 rounded-lg transition-colors disabled:opacity-50"
+                                            >
+                                                {deleting === u.id
+                                                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                    : <Trash2 className="w-4 h-4" />
+                                                }
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* User list */}
-            {loading ? (
-                <div className="flex items-center justify-center h-40">
-                    <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-                </div>
-            ) : (
-                <div className="space-y-2">
-                    {users.map(u => {
-                        const rs = ROLE_STYLE[u.role] || ROLE_STYLE.inspector;
-                        const isCurrentUser = u.id === user?.id;
+            {activeTab === 'plants' && (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Configuración Industrial</h3>
+                    </div>
 
-                        return (
-                            <div key={u.id}
-                                className="flex items-center gap-4 p-4 bg-slate-900/30 border border-slate-800 rounded-xl"
-                            >
-                                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-sm font-bold text-blue-400 shrink-0">
-                                    {(u.display_name || u.email)[0].toUpperCase()}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-semibold text-white truncate">
-                                            {u.display_name || u.email.split('@')[0]}
+                    <p className="text-xs text-slate-500">
+                        Configurá las plantas y sectores de tu empresa. Los inspectores verán estas opciones al crear inspecciones.
+                    </p>
+
+                    {plantsLoading ? (
+                        <div className="flex items-center justify-center h-40">
+                            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {/* Plantas existentes */}
+                            {tenantPlants.map((plant) => (
+                                <div key={plant.name} className="bg-slate-900/30 border border-slate-800 rounded-xl p-4">
+                                    <div className="flex items-center justify-between mb-3 shadow-sm">
+                                        <span className="text-sm font-bold text-white flex items-center gap-2">
+                                            <Building className="w-3.5 h-3.5 text-blue-400" />
+                                            {plant.name}
                                         </span>
-                                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${rs.bg} ${rs.color}`}>
-                                            {rs.label}
-                                        </span>
-                                        {isCurrentUser && (
-                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-500">
-                                                Tú
+                                        <button
+                                            onClick={() => handleRemovePlant(plant.name)}
+                                            className="text-slate-600 hover:text-red-400 hover:bg-red-500/5 px-2 py-1 rounded transition-colors text-[10px] font-bold"
+                                        >
+                                            ELIMINAR PLANTA
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {plant.sectors.map(sector => (
+                                            <span key={sector}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 text-slate-300 text-[11px] font-medium rounded-lg border border-slate-700">
+                                                {sector}
+                                                <button
+                                                    onClick={() => handleRemoveSector(plant.name, sector)}
+                                                    className="text-slate-500 hover:text-red-400"
+                                                >×</button>
                                             </span>
-                                        )}
+                                        ))}
+                                        <input
+                                            type="text"
+                                            placeholder="+ Agregar sector..."
+                                            className="px-2.5 py-1 bg-transparent border border-dashed border-slate-700 text-white text-[11px] rounded-lg w-32 focus:outline-none focus:border-blue-500 transition-all font-medium"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handleAddSector(plant.name, (e.target as HTMLInputElement).value);
+                                                    (e.target as HTMLInputElement).value = '';
+                                                }
+                                            }}
+                                        />
                                     </div>
-                                    <div className="text-xs text-slate-500 truncate">{u.email}</div>
                                 </div>
-                                <div className="text-right shrink-0">
-                                    <div className="text-[10px] text-slate-600">
-                                        {new Date(u.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                    </div>
+                            ))}
+
+                            {/* Agregar nueva planta */}
+                            <div className="bg-blue-500/5 border border-blue-500/15 rounded-xl p-5 space-y-3">
+                                <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                                    <Plus className="w-3.5 h-3.5" /> Nueva Planta
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <input
+                                        value={newPlantName}
+                                        onChange={e => setNewPlantName(e.target.value)}
+                                        placeholder="Nombre de la planta (ej: Planta Sur)"
+                                        className="px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                    />
+                                    <input
+                                        value={newPlantSectors}
+                                        onChange={e => setNewPlantSectors(e.target.value)}
+                                        placeholder="Sectores (separados por coma)"
+                                        className="px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                    />
                                 </div>
-                                {!isCurrentUser && (
-                                    <button
-                                        onClick={() => handleDelete(u.id, u.email)}
-                                        disabled={deleting === u.id}
-                                        className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/5 rounded-lg transition-colors disabled:opacity-50"
-                                        title="Eliminar usuario"
-                                    >
-                                        {deleting === u.id
-                                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                                            : <Trash2 className="w-4 h-4" />
-                                        }
-                                    </button>
-                                )}
+                                <button onClick={handleAddPlant}
+                                    className="px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl text-xs font-bold hover:bg-blue-600/30 transition-colors">
+                                    Confirmar Planta
+                                </button>
                             </div>
-                        );
-                    })}
+
+                            {/* Guardar */}
+                            <button onClick={handleSavePlants} disabled={plantsSaving || tenantPlants.length === 0}
+                                className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/10">
+                                {plantsSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+                                {plantsSaving ? 'Guardando...' : 'Aplicar Cambios a la Configuración'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

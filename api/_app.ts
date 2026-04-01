@@ -7,6 +7,7 @@ import { loginHandler } from './_auth/login.js';
 import { meHandler } from './_auth/me.js';
 import { authenticateToken } from './_auth/middleware.js';
 import { getPhoto } from './_storage.js';
+import { getTenant, updateTenantPlants } from './_tenant.js';
 import { listUsersHandler, createUserHandler, deleteUserHandler } from './_auth/admin-handlers.js';
 import { generateInspectionPDF } from './_pdf.js';
 import { getInspection } from './_store.js';
@@ -145,6 +146,69 @@ export async function createApiApp() {
                 `attachment; filename="inspeccion-${inspection.inspectionId.substring(0, 8)}.pdf"`
             );
             res.send(pdf);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // ── Tenant Config Routes ──
+    app.get('/api/config', safeAuth, async (req, res) => {
+        try {
+            const user = (req as any).user;
+            const tenant = await getTenant(user.tenantId);
+
+            if (!tenant) {
+                // Fallback: devolver config hardcodeada para compatibilidad
+                return res.json({
+                    ok: true,
+                    tenant: {
+                        tenantId: user.tenantId,
+                        name: 'Mi Empresa',
+                        plants: [
+                            { name: 'Planta Norte', sectors: ['Producción L1', 'Producción L2', 'Almacén', 'Despacho', 'Mantenimiento'] },
+                            { name: 'Planta Sur', sectors: ['Producción', 'Envasado', 'Depósito', 'Laboratorio'] },
+                            { name: 'Planta Central', sectors: ['Oficinas', 'Producción', 'Calderas', 'Subestación eléctrica'] },
+                            { name: 'Obra Externa', sectors: ['Frente de obra', 'Obrador', 'Acopio'] },
+                        ],
+                    },
+                });
+            }
+
+            res.json({ ok: true, tenant });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.put('/api/config/plants', safeAuth, async (req, res) => {
+        try {
+            const user = (req as any).user;
+            if (user.role !== 'admin') {
+                return res.status(403).json({ error: 'Admin only' });
+            }
+
+            const { plants } = req.body;
+
+            if (!Array.isArray(plants) || plants.length === 0) {
+                return res.status(400).json({ error: 'plants must be a non-empty array' });
+            }
+
+            // Validar estructura
+            for (const plant of plants) {
+                if (!plant.name || typeof plant.name !== 'string') {
+                    return res.status(400).json({ error: 'Each plant must have a name' });
+                }
+                if (!Array.isArray(plant.sectors) || plant.sectors.length === 0) {
+                    return res.status(400).json({ error: `Plant "${plant.name}" must have at least one sector` });
+                }
+            }
+
+            const updated = await updateTenantPlants(user.tenantId, plants);
+            if (!updated) {
+                return res.status(404).json({ error: 'Tenant not found' });
+            }
+
+            res.json({ ok: true, plants });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }

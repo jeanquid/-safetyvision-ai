@@ -149,7 +149,20 @@ export const getHandler = async (req: Request, res: Response) => {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        res.json({ ok: true, inspection });
+        // Resolver photoUrl a una URL usable por el frontend
+        let resolvedPhotoUrl: string | null = null;
+        if (inspection.photoUrl && inspection.photoUrl.startsWith('photo:')) {
+            const photoId = inspection.photoUrl.replace('photo:', '');
+            resolvedPhotoUrl = `/api/photos/${photoId}`;
+        }
+
+        res.json({
+            ok: true,
+            inspection: {
+                ...inspection,
+                resolvedPhotoUrl, // URL directa para <img src="...">
+            }
+        });
     } catch (error: any) {
         logger.error('inspections', 'Get inspection failed', { error: error.message });
         res.status(500).json({ error: error.message });
