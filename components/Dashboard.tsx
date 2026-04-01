@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { BarChart3, AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown, Loader2, RefreshCw } from 'lucide-react';
+import { BarChart3, AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown, Loader2, RefreshCw, Building2 } from 'lucide-react';
 
 const RISK_COLORS: Record<string, string> = { alto: '#EF4444', medio: '#F59E0B', bajo: '#22C55E' };
 const CAT_META: Record<string, { label: string; icon: string; color: string }> = {
@@ -9,7 +9,12 @@ const CAT_META: Record<string, { label: string; icon: string; color: string }> =
     comportamiento: { label: 'Comportamiento', icon: '🚧', color: '#EC4899' },
 };
 
-export const Dashboard: React.FC = () => {
+interface DashboardProps {
+    companyId?: string;
+    companyName?: string;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ companyId, companyName }) => {
     const { authFetch } = useAuth();
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -17,7 +22,8 @@ export const Dashboard: React.FC = () => {
     const fetchStats = async () => {
         setLoading(true);
         try {
-            const res = await authFetch('/api/dashboard');
+            const url = companyId ? `/api/dashboard?companyId=${companyId}` : '/api/dashboard';
+            const res = await authFetch(url);
             const data = await res.json();
             if (data.ok) setStats(data);
         } catch (err) {
@@ -26,7 +32,7 @@ export const Dashboard: React.FC = () => {
         setLoading(false);
     };
 
-    useEffect(() => { fetchStats(); }, []);
+    useEffect(() => { fetchStats(); }, [companyId]);
 
     if (loading && !stats) {
         return (
@@ -41,7 +47,13 @@ export const Dashboard: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white">Panel de Control</h2>
+                <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        {companyId ? <Building2 className="w-5 h-5 text-blue-400" /> : <BarChart3 className="w-5 h-5 text-blue-400" />}
+                        Dashboard {companyName ? `— ${companyName}` : 'Global'}
+                    </h2>
+                    <p className="text-slate-500 text-sm mt-0.5">Métricas detectadas por IA</p>
+                </div>
                 <button onClick={fetchStats} className="text-slate-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-slate-800">
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 </button>

@@ -1,25 +1,27 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Shield, LayoutDashboard, Camera, ClipboardList, LogOut, Menu, X, Users } from 'lucide-react';
+import { Shield, LayoutDashboard, Camera, ClipboardList, LogOut, Menu, X, Users, Building2, ChevronRight } from 'lucide-react';
 
 interface LayoutProps {
     children: React.ReactNode;
     currentView: string;
     onNavigate: (view: string) => void;
+    selectedCompanyName?: string;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigate }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigate, selectedCompanyName }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { user, logout } = useAuth();
 
     const baseNavItems = [
-        { key: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', color: 'text-blue-400' },
-        { key: 'new', icon: Camera, label: 'Nueva Inspección', color: 'text-emerald-400' },
-        { key: 'inspections', icon: ClipboardList, label: 'Inspecciones', color: 'text-amber-400' },
+        { key: 'companies', icon: Building2, label: 'Mis Empresas', color: 'text-blue-400' },
+        { key: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', color: 'text-blue-400', requiresCompany: true },
+        { key: 'new', icon: Camera, label: 'Nueva Inspección', color: 'text-emerald-400', requiresCompany: true },
+        { key: 'inspections', icon: ClipboardList, label: 'Inspecciones', color: 'text-amber-400', requiresCompany: true },
     ];
 
     const navItems = user?.role === 'admin'
-        ? [...baseNavItems, { key: 'admin', icon: Users, label: 'Usuarios', color: 'text-purple-400' }]
+        ? [...baseNavItems, { key: 'admin', icon: Users, label: 'Administración', color: 'text-purple-400' }]
         : baseNavItems;
 
     return (
@@ -36,7 +38,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
                                 <Shield className="w-5 h-5 text-white" />
                             </div>
                             <div>
-                                <div className="font-bold text-sm"><span className="text-blue-400">Safety</span>Vision</div>
+                                <div className="font-bold text-sm leading-tight"><span className="text-blue-400">Safety</span>Vision</div>
                                 <div className="text-[9px] text-slate-500 tracking-wider">SEGURIDAD INDUSTRIAL</div>
                             </div>
                         </div>
@@ -47,12 +49,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
                         {navItems.map(item => {
                             const Icon = item.icon;
                             const active = currentView === item.key;
+                            const disabled = item.requiresCompany && !selectedCompanyName;
+                            
                             return (
                                 <button key={item.key}
-                                    onClick={() => { onNavigate(item.key); setSidebarOpen(false); }}
-                                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${active
-                                        ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
-                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                                    onClick={() => { if (!disabled) { onNavigate(item.key); setSidebarOpen(false); } }}
+                                    disabled={disabled}
+                                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                                        active
+                                            ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
+                                            : disabled
+                                                ? 'opacity-30 cursor-not-allowed grayscale'
+                                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                    }`}>
                                     <Icon size={18} />
                                     <span>{item.label}</span>
                                 </button>
@@ -80,11 +89,31 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
 
             {/* Main */}
             <main className="flex-1 flex flex-col overflow-hidden">
-                <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/80 backdrop-blur-xl">
-                    <button onClick={() => setSidebarOpen(true)} className="text-slate-400"><Menu size={22} /></button>
-                    <span className="text-sm font-bold"><span className="text-blue-400">Safety</span>Vision</span>
-                    <div className="w-6" />
+                <header className="flex items-center h-14 px-4 lg:px-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur-xl">
+                    <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-slate-400 mr-4"><Menu size={20} /></button>
+                    
+                    <div className="flex items-center gap-2 overflow-hidden">
+                        <button 
+                            onClick={() => onNavigate('companies')}
+                            className="text-xs font-bold text-slate-500 hover:text-white transition-colors"
+                        >
+                            EMPRESAS
+                        </button>
+                        {selectedCompanyName && (
+                            <>
+                                <ChevronRight className="w-3 h-3 text-slate-700 shrink-0" />
+                                <span className="text-xs font-bold text-blue-400 truncate uppercase tracking-wider">
+                                    {selectedCompanyName}
+                                </span>
+                            </>
+                        )}
+                        <ChevronRight className="w-3 h-3 text-slate-700 shrink-0" />
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">
+                            {currentView}
+                        </span>
+                    </div>
                 </header>
+                
                 <div className="flex-1 overflow-y-auto p-4 lg:p-6">
                     {children}
                 </div>

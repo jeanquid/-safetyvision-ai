@@ -8,6 +8,10 @@ import { meHandler } from './_auth/me.js';
 import { authenticateToken } from './_auth/middleware.js';
 import { getPhoto } from './_storage.js';
 import { getTenant, updateTenantPlants } from './_tenant.js';
+import {
+    createCompany, listCompanies, getCompany, updateCompany,
+    deleteCompany, getCompaniesWithStats, resetCompanyInspections
+} from './_companies.js';
 import { listUsersHandler, createUserHandler, deleteUserHandler } from './_auth/admin-handlers.js';
 import { generateInspectionPDF } from './_pdf.js';
 import { getInspection } from './_store.js';
@@ -213,6 +217,105 @@ export async function createApiApp() {
             res.status(500).json({ error: error.message });
         }
     });
+
+    // ── Company Routes ──
+    const companyRouter = express.Router();
+
+    // Listar empresas con stats (para el dashboard)
+    companyRouter.get('/list', safeAuth, async (req, res) => {
+        try {
+            const user = (req as any).user;
+            const companies = await getCompaniesWithStats(user.tenantId);
+            res.json({ ok: true, companies });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Obtener empresa por ID (con detalle)
+    companyRouter.get('/:id', safeAuth, async (req, res) => {
+        try {
+            const user = (req as any).user;
+            const company = await getCompany(req.params.id);
+            if (!company) return res.status(404).json({ error: 'Company not found' });
+            if (company.tenantId !== user.tenantId) return res.status(403).json({ error: 'Access denied' });
+            res.json({ ok: true, company });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Crear empresa
+    companyRouter.post('/create', safeAuth, async (req, res) => {
+        try {
+            const user = (req as any).user;
+            const { name, rut, address, contactName, contactPhone, plants, notes } = req.body;
+            if (!name) return res.status(400).json({ error: 'name is required' });
+
+            const company = await createCompany({
+                tenantId: user.tenantId, name, rut, address,
+                contactName, contactPhone, plants, notes,
+            });
+            res.json({ ok: true, company });
+        } catch (error: any) {
+            if (error.message?.includes('duplicate key')) {
+                return res.status(409).json({ error: 'Ya existe una empresa con ese nombre' });
+            }
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Actualizar empresa
+    companyRouter.put('/:id', safeAuth, async (req, res) => {
+        try {
+            const user = (req as any).user;
+            const company = await getCompany(req.params.id);
+            if (!company) return res.status(404).json({ error: 'Company not found' });
+            if (company.tenantId !== user.tenantId) return res.status(403).json({ error: 'Access denied' });
+
+            await updateCompany(req.params.id, req.body);
+            const updated = await getCompany(req.params.id);
+            res.json({ ok: true, company: updated });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Resetear inspecciones de una empresa (borrar todas)
+    companyRouter.post('/:id/reset', safeAuth, async (req, res) => {
+        try {
+            const user = (req as any).user;
+            if (user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+
+            const company = await getCompany(req.params.id);
+            if (!company) return res.status(404).json({ error: 'Company not found' });
+            if (company.tenantId !== user.tenantId) return res.status(403).json({ error: 'Access denied' });
+
+            const deleted = await resetCompanyInspections(req.params.id);
+            res.json({ ok: true, deletedInspections: deleted });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Eliminar empresa (soft delete)
+    companyRouter.delete('/:id', safeAuth, async (req, res) => {
+        try {
+            const user = (req as any).user;
+            if (user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+
+            const company = await getCompany(req.params.id);
+            if (!company) return res.status(404).json({ error: 'Company not found' });
+            if (company.tenantId !== user.tenantId) return res.status(403).json({ error: 'Access denied' });
+
+            await deleteCompany(req.params.id);
+            res.json({ ok: true });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.use('/api/companies', companyRouter);
 
     // ── Dashboard ──
     app.get(['/api/dashboard', '/dashboard'], safeAuth, dashboardHandler);

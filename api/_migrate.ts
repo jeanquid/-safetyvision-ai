@@ -84,6 +84,35 @@ async function migrate() {
         ]);
         console.log('✅ Tenant "sv-demo" seeded.');
 
+        console.log('--- Creating table: companies ---');
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS companies (
+                company_id UUID PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                rut TEXT,
+                address TEXT,
+                contact_name TEXT,
+                contact_phone TEXT,
+                plants JSONB NOT NULL DEFAULT '[]',
+                notes TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_companies_tenant ON companies(tenant_id);`);
+        await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name_tenant ON companies(tenant_id, name);`);
+        console.log('✅ Table "companies" OK.');
+
+        console.log('--- Adding company_id to inspections ---');
+        await db.query(`
+            ALTER TABLE inspections
+            ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(company_id);
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_inspections_company ON inspections(company_id);`);
+        console.log('✅ Column "company_id" added to inspections.');
+
         await seedUsers();
         console.log('🎉 Migration completed!');
     } catch (error) {

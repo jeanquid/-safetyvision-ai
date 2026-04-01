@@ -9,7 +9,7 @@ export interface DetectedRisk {
     description: string;
     level: RiskLevel;
     confidence: number;
-    recommendation?: string; // NUEVO
+    recommendation?: string;
     status: TaskStatus;
     aiModel?: string;
 }
@@ -24,10 +24,38 @@ export interface CorrectiveTask {
     notes?: string;
 }
 
+export interface Company {
+    companyId: string;
+    tenantId: string;
+    name: string;
+    rut?: string;
+    address?: string;
+    contactName?: string;
+    contactPhone?: string;
+    plants: { name: string; sectors: string[] }[];
+    notes?: string;
+    status: 'active' | 'archived';
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CompanyStats {
+    companyId: string;
+    name: string;
+    totalInspections: number;
+    totalRisks: number;
+    highRisks: number;
+    pendingTasks: number;
+    resolvedPct: number;
+    lastInspectionDate: string | null;
+}
+
 export interface InspectionState {
     inspectionId: string;
     tenantId: string;
     userId: string;
+    companyId: string;       // NUEVO — obligatorio
+    companyName?: string;    // NUEVO — para display sin join
     status: InspectionStatus;
     plant: string;
     sector: string;

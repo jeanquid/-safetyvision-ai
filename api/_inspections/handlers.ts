@@ -51,15 +51,17 @@ export const analyzeHandler = async (req: Request, res: Response) => {
 export const createHandler = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const { plant, sector, operator, risks, task, aiAnalysis, photoUrl } = req.body;
+        const { companyId, companyName, plant, sector, operator, risks, task, aiAnalysis, photoUrl } = req.body;
 
-        if (!plant || !risks || !task) {
-            return res.status(400).json({ error: 'plant, risks, and task are required' });
+        if (!companyId || !plant || !risks || !task) {
+            return res.status(400).json({ error: 'companyId, plant, risks, and task are required' });
         }
 
         const inspection = await createInspection({
             tenantId: user.tenantId,
             userId: user.userId,
+            companyId,
+            companyName,
             plant,
             sector: sector || 'Sin especificar',
             operator: operator || user.displayName || user.email,
@@ -112,9 +114,10 @@ export const createHandler = async (req: Request, res: Response) => {
 export const listHandler = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const { plant, status, level, limit, offset } = req.query;
+        const { companyId, plant, status, level, limit, offset } = req.query;
 
         const { inspections, total } = await listInspections(user.tenantId, {
+            companyId: companyId as string,
             plant: plant as string,
             status: status as string,
             level: level as string,
@@ -244,7 +247,8 @@ export const deleteHandler = async (req: Request, res: Response) => {
 export const dashboardHandler = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const stats = await getDashboardStats(user.tenantId);
+        const companyId = req.query.companyId as string | undefined;
+        const stats = await getDashboardStats(user.tenantId, companyId);
         res.json({ ok: true, ...stats });
     } catch (error: any) {
         logger.error('inspections', 'Dashboard fetch failed', { error: error.message });
