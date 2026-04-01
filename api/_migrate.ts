@@ -113,6 +113,20 @@ async function migrate() {
         await db.query(`CREATE INDEX IF NOT EXISTS idx_inspections_company ON inspections(company_id);`);
         console.log('✅ Column "company_id" added to inspections.');
 
+        console.log('--- Fixing FK: inspections.user_id → ON DELETE SET NULL ---');
+        await db.query(`
+            ALTER TABLE inspections
+            DROP CONSTRAINT IF EXISTS inspections_user_id_fkey;
+        `);
+        await db.query(`
+            ALTER TABLE inspections
+            ADD CONSTRAINT inspections_user_id_fkey
+            FOREIGN KEY (user_id)
+            REFERENCES users(id)
+            ON DELETE SET NULL;
+        `);
+        console.log('✅ FK inspections_user_id_fkey updated.');
+
         await seedUsers();
         console.log('🎉 Migration completed!');
     } catch (error) {

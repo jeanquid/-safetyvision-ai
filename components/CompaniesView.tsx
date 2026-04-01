@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
     Building2, Plus, AlertTriangle, CheckCircle, Clock,
-    Loader2, ChevronRight, RefreshCw, Search
+    Loader2, ChevronRight, RefreshCw, Search, Trash2
 } from 'lucide-react';
 
 interface CompanyStats {
@@ -22,10 +22,11 @@ interface Props {
 }
 
 export const CompaniesView: React.FC<Props> = ({ onSelectCompany, onNewCompany }) => {
-    const { authFetch } = useAuth();
+    const { authFetch, user } = useAuth();
     const [companies, setCompanies] = useState<CompanyStats[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     const fetchCompanies = async () => {
         setLoading(true);
@@ -38,6 +39,24 @@ export const CompaniesView: React.FC<Props> = ({ onSelectCompany, onNewCompany }
     };
 
     useEffect(() => { fetchCompanies(); }, []);
+
+    const handleDelete = async (e: React.MouseEvent, companyId: string, name: string) => {
+        e.stopPropagation(); // evitar que dispare onSelectCompany
+        if (!window.confirm(`¿Archivar "${name}"? Sus inspecciones se conservan.`)) return;
+        setDeletingId(companyId);
+        try {
+            const res = await authFetch(`/api/companies/${companyId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.ok) {
+                setCompanies(prev => prev.filter(c => c.companyId !== companyId));
+            } else {
+                alert(data.error || 'No se pudo eliminar la empresa');
+            }
+        } catch {
+            alert('Error de red al eliminar');
+        }
+        setDeletingId(null);
+    };
 
     const filtered = search
         ? companies.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -123,7 +142,21 @@ export const CompaniesView: React.FC<Props> = ({ onSelectCompany, onNewCompany }
                                         </div>
                                     </div>
                                 </div>
-                                <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-blue-400 transition-colors" />
+                                <div className="flex items-center gap-2">
+                                    {user?.role === 'admin' && (
+                                        <button
+                                            onClick={(e) => handleDelete(e, c.companyId, c.name)}
+                                            disabled={deletingId === c.companyId}
+                                            className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+                                            title="Archivar empresa"
+                                        >
+                                            {deletingId === c.companyId
+                                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                : <Trash2 className="w-3.5 h-3.5" />}
+                                        </button>
+                                    )}
+                                    <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-blue-400 transition-colors" />
+                                </div>
                             </div>
                             <div className="grid grid-cols-4 gap-2 border-t border-slate-800/50 pt-3 mt-3">
                                 <div className="text-center">
