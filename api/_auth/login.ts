@@ -18,7 +18,10 @@ export const loginHandler = async (req: Request, res: Response) => {
         return res.status(401).json({ ok: false, error: 'Invalid credentials' });
     }
 
+    console.log(`[AUTH] User found: "${email}". Hash length: ${user.passwordHash.length}`);
     const isValid = await bcrypt.compare(password, user.passwordHash);
+    console.log(`[AUTH] Password comparison result for "${email}": ${isValid}`);
+    
     if (!isValid) {
         return res.status(401).json({ ok: false, error: 'Invalid credentials' });
     }
