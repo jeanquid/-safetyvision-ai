@@ -1,7 +1,20 @@
 import PDFDocument from 'pdfkit';
 import { InspectionState } from './_types.js';
+import { getPhoto } from './_storage.js';
 
-export function generateInspectionPDF(inspection: InspectionState): Promise<Buffer> {
+export async function generateInspectionPDF(inspection: InspectionState): Promise<Buffer> {
+    // Resolver la foto antes de abrir el stream del PDF
+    let photoBuffer: Buffer | null = null;
+    if (inspection.photoUrl && inspection.photoUrl.startsWith('photo:')) {
+        const photoId = inspection.photoUrl.replace('photo:', '');
+        try {
+            const photo = await getPhoto(photoId);
+            if (photo) {
+                photoBuffer = Buffer.from(photo.data, 'base64');
+            }
+        } catch { /* si falla, el PDF se genera igual sin foto */ }
+    }
+
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const chunks: Buffer[] = [];
@@ -26,6 +39,7 @@ export function generateInspectionPDF(inspection: InspectionState): Promise<Buff
         const info = [
             ['ID', inspection.inspectionId.substring(0, 8)],
             ['Fecha', new Date(inspection.createdAt).toLocaleString('es-AR')],
+            ['Empresa', inspection.companyName || '-'],
             ['Planta', inspection.plant],
             ['Sector', inspection.sector],
             ['Operador', inspection.operator],
@@ -59,9 +73,11 @@ export function generateInspectionPDF(inspection: InspectionState): Promise<Buff
                 doc.font('Helvetica-Oblique')
                    .text(`→ ${risk.recommendation}`);
             }
-            doc.text(`Confianza: ${risk.confidence}% | Modelo: ${risk.aiModel || 'N/A'}`, {
-                align: 'right',
-            });
+            doc.font('Helvetica').fillColor('#999999')
+               .text(`Confianza: ${risk.confidence}% | Modelo: ${risk.aiModel || 'N/A'}`, {
+                   align: 'right',
+               });
+            doc.fillColor('#000000');
             doc.moveDown(0.5);
         });
 
@@ -79,6 +95,32 @@ export function generateInspectionPDF(inspection: InspectionState): Promise<Buff
         doc.font('Helvetica').text(inspection.task.responsible);
         doc.font('Helvetica-Bold').text('Plazo: ', { continued: true });
         doc.font('Helvetica').text(inspection.task.deadline);
+        if (inspection.task.resolvedAt) {
+            doc.font('Helvetica-Bold').text('Resuelto: ', { continued: true });
+            doc.font('Helvetica').text(
+                `${new Date(inspection.task.resolvedAt).toLocaleString('es-AR')} por ${inspection.task.resolvedBy || '-'}`
+            );
+        }
+
+        doc.moveDown(1);
+
+        // Evidencia fotográfica
+        if (photoBuffer) {
+            doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000')
+               .text('Evidencia Fotográfica');
+            doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#CCCCCC');
+            doc.moveDown(0.5);
+            try {
+                doc.image(photoBuffer, {
+                    fit: [495, 280],
+                    align: 'center',
+                });
+            } catch {
+                doc.fontSize(10).font('Helvetica').fillColor('#999999')
+                   .text('(No se pudo incrustar la imagen en este reporte)');
+            }
+            doc.moveDown(1);
+        }
 
         // Footer
         doc.moveDown(2);
