@@ -49,14 +49,14 @@ export async function seedUsers() {
     const usersToSeed = [
         {
             email: process.env.SEED_ADMIN_EMAIL || 'admin@safetyvision.ai',
-            password: process.env.SEED_ADMIN_PASSWORD || 'seguridad1',
+            password: 'seguridad1', // Hardcoded as requested for local/dev fix
             role: 'admin' as const,
             tenantId: 'sv-demo',
             displayName: 'Administrador'
         },
         {
             email: process.env.SEED_INSPECTOR_EMAIL || 'inspector@safetyvision.ai',
-            password: process.env.SEED_INSPECTOR_PASSWORD || 'seguridad1',
+            password: 'seguridad1',
             role: 'inspector' as const,
             tenantId: 'sv-demo',
             displayName: 'Inspector de Seguridad'
