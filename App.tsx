@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { CompaniesView } from './components/CompaniesView';
 import { Dashboard } from './components/Dashboard';
 import { NewInspection } from './components/NewInspection';
+import { NewCompanyForm } from './components/NewCompanyForm';
 import { InspectionsList } from './components/InspectionsList';
 import { AdminPanel } from './components/AdminPanel';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -30,8 +31,8 @@ function AppContent() {
     };
 
     return (
-        <Layout 
-            currentView={currentView} 
+        <Layout
+            currentView={currentView}
             onNavigate={(view) => {
                 if (view === 'companies') setSelectedCompany(null);
                 setCurrentView(view);
@@ -39,20 +40,29 @@ function AppContent() {
             selectedCompanyName={selectedCompany?.name}
         >
             {currentView === 'companies' && (
-                <CompaniesView 
+                <CompaniesView
                     onSelectCompany={handleSelectCompany}
                     onNewCompany={() => setCurrentView('new_company')}
                 />
             )}
-            
+
+            {currentView === 'new_company' && (
+                <NewCompanyForm
+                    onComplete={(companyId, companyName) => {
+                        handleSelectCompany(companyId, companyName);
+                    }}
+                    onCancel={() => setCurrentView('companies')}
+                />
+            )}
+
             {currentView === 'dashboard' && (
                 <Dashboard companyId={selectedCompany?.id} companyName={selectedCompany?.name} />
             )}
 
             {currentView === 'new' && (
-                <NewInspection 
+                <NewInspection
                     selectedCompanyId={selectedCompany?.id}
-                    onComplete={() => setCurrentView('inspections')} 
+                    onComplete={() => setCurrentView('inspections')}
                 />
             )}
 
@@ -61,15 +71,6 @@ function AppContent() {
             )}
 
             {currentView === 'admin' && <AdminPanel />}
-
-            {currentView === 'new_company' && (
-                <div className="max-w-2xl mx-auto py-10">
-                    <h2 className="text-xl font-bold text-white mb-6">Crear Nueva Empresa Cliente</h2>
-                    <p className="text-slate-400 text-sm mb-4">Esta función estará disponible en el panel de administración próximamente.</p>
-                    <button onClick={() => setCurrentView('companies')} className="text-blue-400 font-semibold underline">Volver al listado</button>
-                    {/* Eventualmente mover NewCompanyForm aquí */}
-                </div>
-            )}
         </Layout>
     );
 }
