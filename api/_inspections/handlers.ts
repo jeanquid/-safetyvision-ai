@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createInspection, getInspection, updateInspection, listInspections, deleteInspection, getDashboardStats } from '../_store.js';
+import { createInspection, getInspection, updateInspection, listInspections, deleteInspection, getDashboardStats, saveAiFeedback } from '../_store.js';
 import { savePhoto } from '../_storage.js';
 import { analyzeImageWithGemini, analyzeTextDescription, validateImage } from '../_ai-engine.js';
 import { notifyAlert } from '../_notify.js';
@@ -100,6 +100,41 @@ export const createHandler = async (req: Request, res: Response) => {
         if (photoId) {
             await updateInspection(inspection.inspectionId, (ins) => {
                 ins.photoUrl = `photo:${photoId}`;
+            });
+        }
+
+        // --- PHASE 5: AI Feedback Analytics ---
+        if (aiAnalysis?.originalRisks) {
+            const original = aiAnalysis.originalRisks || [];
+            const final = risks || [];
+            
+            const stats = {
+                accepted: 0,
+                edited: 0, // por ahora no detectamos edición profunda
+                removed: 0,
+                added: 0
+            };
+
+            const finalIds = new Set(final.map((r: any) => r.id));
+            const originalIds = new Set(original.map((r: any) => r.id));
+
+            original.forEach((r: any) => {
+                if (finalIds.has(r.id)) stats.accepted++;
+                else stats.removed++;
+            });
+
+            final.forEach((r: any) => {
+                if (!originalIds.has(r.id)) stats.added++;
+            });
+
+            void saveAiFeedback({
+                inspectionId: inspection.inspectionId,
+                tenantId: user.tenantId,
+                aiRisks: original,
+                finalRisks: final,
+                stats,
+                plant,
+                sector
             });
         }
 

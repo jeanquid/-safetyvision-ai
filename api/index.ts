@@ -38,10 +38,23 @@ async function ensureTables() {
             ALTER TABLE inspections
             ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(company_id);
         `);
-
-        await db.query(`CREATE INDEX IF NOT EXISTS idx_companies_tenant ON companies(tenant_id);`);
-        await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name_tenant ON companies(tenant_id, name);`);
-        await db.query(`CREATE INDEX IF NOT EXISTS idx_inspections_company ON inspections(company_id);`);
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS ai_feedback (
+                id UUID PRIMARY KEY,
+                inspection_id UUID REFERENCES inspections(inspection_id) ON DELETE CASCADE,
+                tenant_id TEXT NOT NULL,
+                ai_risks JSONB NOT NULL,
+                final_risks JSONB NOT NULL,
+                risks_accepted INT DEFAULT 0,
+                risks_edited INT DEFAULT 0,
+                risks_removed INT DEFAULT 0,
+                risks_added INT DEFAULT 0,
+                plant TEXT,
+                sector TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_feedback_tenant ON ai_feedback(tenant_id);`);
 
         migrated = true;
         logger.info('init', 'Auto-migration complete');

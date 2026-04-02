@@ -127,6 +127,25 @@ async function migrate() {
         `);
         console.log('✅ FK inspections_user_id_fkey updated.');
 
+        console.log('--- Creating table: ai_feedback ---');
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS ai_feedback (
+                id UUID PRIMARY KEY,
+                inspection_id UUID REFERENCES inspections(inspection_id) ON DELETE CASCADE,
+                tenant_id TEXT NOT NULL,
+                ai_risks JSONB NOT NULL,
+                final_risks JSONB NOT NULL,
+                risks_accepted INT DEFAULT 0,
+                risks_edited INT DEFAULT 0,
+                risks_removed INT DEFAULT 0,
+                risks_added INT DEFAULT 0,
+                plant TEXT,
+                sector TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('✅ Table "ai_feedback" OK.');
+
         await seedUsers();
         console.log('🎉 Migration completed!');
     } catch (error) {

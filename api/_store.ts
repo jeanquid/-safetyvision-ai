@@ -239,3 +239,37 @@ export async function getDashboardStats(tenantId: string, companyId?: string): P
         };
     }
 }
+
+export async function saveAiFeedback(data: {
+    inspectionId: string;
+    tenantId: string;
+    aiRisks: any[];
+    finalRisks: any[];
+    stats: {
+        accepted: number;
+        edited: number;
+        removed: number;
+        added: number;
+    };
+    plant?: string;
+    sector?: string;
+}): Promise<void> {
+    const id = uuidv4();
+    try {
+        await db.query(`
+            INSERT INTO ai_feedback (
+                id, inspection_id, tenant_id, ai_risks, final_risks,
+                risks_accepted, risks_edited, risks_removed, risks_added,
+                plant, sector
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `, [
+            id, data.inspectionId, data.tenantId, 
+            JSON.stringify(data.aiRisks), JSON.stringify(data.finalRisks),
+            data.stats.accepted, data.stats.edited, data.stats.removed, data.stats.added,
+            data.plant, data.sector
+        ]);
+        logger.info('store', 'AI feedback saved', { inspectionId: data.inspectionId });
+    } catch (error: any) {
+        logger.error('store', 'Failed to save AI feedback', { error: error.message });
+    }
+}

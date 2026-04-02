@@ -30,6 +30,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
     const [imageBase64, setImageBase64] = useState<string | null>(null);
     const [mimeType, setMimeType] = useState('image/jpeg');
     const [risks, setRisks] = useState<any[]>([]);
+    const [originalRisks, setOriginalRisks] = useState<any[]>([]);
     const [aiModel, setAiModel] = useState('');
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -111,9 +112,11 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
             });
             const data = await res.json();
 
+
             if (!res.ok || !data.ok) throw new Error(data.error || 'Analysis failed');
 
             setRisks(data.risks || []);
+            setOriginalRisks(JSON.parse(JSON.stringify(data.risks || [])));
             setAiModel(data.model || 'unknown');
             setStep('results');
         } catch (err: any) {
@@ -142,7 +145,11 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                 body: JSON.stringify({
                     companyId, companyName, plant, sector, operator, risks, task,
                     imageBase64, mimeType,
-                    aiAnalysis: { model: aiModel, analyzedAt: new Date().toISOString() },
+                    aiAnalysis: { 
+                        model: aiModel, 
+                        analyzedAt: new Date().toISOString(),
+                        originalRisks
+                    },
                 }),
             });
             const data = await res.json();
