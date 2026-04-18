@@ -272,46 +272,56 @@ export const AdminPanel: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Create form */}
+                    {/* Create form — mejorado */}
                     {showForm && (
-                        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-6 space-y-5">
+                            <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
+                                <UserPlus className="w-5 h-5 text-blue-400" />
+                                <h4 className="text-sm font-bold text-white">Nuevo Usuario</h4>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Email *</label>
+                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Email *</label>
                                     <input
                                         type="email"
                                         value={newEmail}
                                         onChange={e => setNewEmail(e.target.value)}
-                                        placeholder="usuario@empresa.com"
-                                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                        placeholder="usuario@hse-ingenieria.com"
+                                        className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                                     />
+                                    <p className="text-[9px] text-slate-600 mt-1">Será el nombre de usuario</p>
                                 </div>
+
                                 <div>
-                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Contraseña * (min 8 chars)</label>
+                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Contraseña * (mín. 8 caracteres)</label>
                                     <input
                                         type="password"
                                         value={newPassword}
                                         onChange={e => setNewPassword(e.target.value)}
                                         placeholder="••••••••"
-                                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                        className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                                     />
+                                    <p className="text-[9px] text-slate-600 mt-1">{newPassword.length}/8 caracteres</p>
                                 </div>
+
                                 <div>
-                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Nombre</label>
+                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Nombre completo</label>
                                     <input
                                         type="text"
                                         value={newName}
                                         onChange={e => setNewName(e.target.value)}
-                                        placeholder="Nombre completo"
-                                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                        placeholder="Ej: Juan García"
+                                        className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                                     />
                                 </div>
+
                                 <div>
-                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Rol</label>
+                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Rol *</label>
                                     <select
                                         value={newRole}
                                         onChange={e => setNewRole(e.target.value as any)}
-                                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                        className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                                     >
                                         <option value="inspector">Inspector</option>
                                         <option value="supervisor">Supervisor</option>
@@ -320,15 +330,19 @@ export const AdminPanel: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Campos de firma — solo visibles cuando el rol es inspector */}
+                            {/* Campos de firma — solo para inspectores */}
                             {newRole === 'inspector' && (
-                                <div className="border-t border-slate-800 pt-4 space-y-3">
-                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold flex items-center gap-1.5">
-                                        <Eye className="w-3 h-3" /> Datos de firma para actas de inspección
-                                    </p>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="border-t border-slate-800 pt-5 space-y-4">
+                                    <div className="flex items-center gap-2 pb-2 border-b border-slate-700">
+                                        <Eye className="w-4 h-4 text-emerald-400" />
+                                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                                            Datos de firma para actas de inspección
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">
                                                 Nombre completo (para firma)
                                             </label>
                                             <input
@@ -336,23 +350,27 @@ export const AdminPanel: React.FC = () => {
                                                 value={newFullName}
                                                 onChange={e => setNewFullName(e.target.value)}
                                                 placeholder="Ej: Ing. Juan García"
-                                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                                className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                                             />
+                                            <p className="text-[9px] text-slate-600 mt-1">Aparecerá en el PDF del acta</p>
                                         </div>
+
                                         <div>
-                                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                                                Matrícula / N° habilitación
+                                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">
+                                                Matrícula / Habilitación
                                             </label>
                                             <input
                                                 type="text"
                                                 value={newLicenseNumber}
                                                 onChange={e => setNewLicenseNumber(e.target.value)}
                                                 placeholder="Ej: Mat. 4521 — CPSI"
-                                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                                className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                                             />
+                                            <p className="text-[9px] text-slate-600 mt-1">Número de habilitación profesional</p>
                                         </div>
+
                                         <div className="md:col-span-2">
-                                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">
                                                 Función / Sello
                                             </label>
                                             <input
@@ -360,71 +378,131 @@ export const AdminPanel: React.FC = () => {
                                                 value={newJobTitle}
                                                 onChange={e => setNewJobTitle(e.target.value)}
                                                 placeholder="Inspector de Seguridad e Higiene"
-                                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                                className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                                             />
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            <button
-                                onClick={handleCreate}
-                                disabled={creating}
-                                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-                            >
-                                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                                {creating ? 'Creando...' : 'Crear Usuario'}
-                            </button>
+                            {/* Botones de acción */}
+                            <div className="flex gap-2 pt-3 border-t border-slate-800">
+                                <button
+                                    onClick={handleCreate}
+                                    disabled={creating || !newEmail || !newPassword}
+                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+                                >
+                                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                    {creating ? 'Creando...' : 'Crear Usuario'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowForm(false);
+                                        setNewEmail('');
+                                        setNewPassword('');
+                                        setNewName('');
+                                        setNewRole('inspector');
+                                        setNewFullName('');
+                                        setNewLicenseNumber('');
+                                        setNewJobTitle('Inspector de Seguridad e Higiene');
+                                        setError('');
+                                    }}
+                                    className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition-colors text-sm"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
                         </div>
                     )}
 
-                    {/* User list */}
+                    {/* User list — tabla mejorada */}
                     {loading ? (
                         <div className="flex items-center justify-center h-40">
                             <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
                         </div>
+                    ) : users.length === 0 ? (
+                        <div className="text-center py-12 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
+                            <UsersIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                            <p className="text-slate-500 text-sm font-medium">No hay usuarios registrados aún</p>
+                            <p className="text-slate-600 text-xs mt-1">Creá el primero presionando "Nuevo Usuario"</p>
+                        </div>
                     ) : (
                         <div className="space-y-2">
+                            {/* Header de tabla (solo visual, no es tabla real) */}
+                            <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-slate-900/50 rounded-lg text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                <div className="col-span-1">Avatar</div>
+                                <div className="col-span-3">Usuario</div>
+                                <div className="col-span-2">Rol</div>
+                                <div className="col-span-4">Datos</div>
+                                <div className="col-span-2 text-right">Acciones</div>
+                            </div>
+
+                            {/* Rows */}
                             {users.map(u => {
                                 const rs = ROLE_STYLE[u.role] || ROLE_STYLE.inspector;
                                 const isCurrentUser = u.id === user?.id;
 
                                 return (
-                                    <div key={u.id}
-                                        className="flex items-center gap-4 p-4 bg-slate-900/30 border border-slate-800 rounded-xl"
+                                    <div
+                                        key={u.id}
+                                        className="grid grid-cols-12 gap-3 items-center p-4 bg-slate-900/30 border border-slate-800 rounded-xl hover:bg-slate-800/40 transition-colors"
                                     >
-                                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-sm font-bold text-blue-400 shrink-0">
-                                            {(u.display_name || u.email)[0].toUpperCase()}
+                                        {/* Avatar */}
+                                        <div className="col-span-1">
+                                            <div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs font-bold text-emerald-400">
+                                                {(u.display_name || u.email)[0].toUpperCase()}
+                                            </div>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-semibold text-white truncate">
-                                                    {u.display_name || u.email.split('@')[0]}
-                                                </span>
-                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${rs.bg} ${rs.color}`}>
-                                                    {rs.label}
-                                                </span>
+
+                                        {/* Email y display name */}
+                                        <div className="col-span-3 min-w-0">
+                                            <div className="font-semibold text-white text-sm truncate">
+                                                {u.display_name || u.email.split('@')[0]}
                                             </div>
                                             <div className="text-xs text-slate-500 truncate">{u.email}</div>
-                                            {/* Si el usuario tiene datos de firma, mostrarlos */}
-                                            {u.full_name && (
-                                                <div className="text-[10px] text-slate-600 mt-0.5 font-mono">
-                                                    {u.full_name}{u.license_number ? ` · ${u.license_number}` : ''}
+                                        </div>
+
+                                        {/* Rol */}
+                                        <div className="col-span-2">
+                                            <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full border ${rs.bg} ${rs.color} whitespace-nowrap`}>
+                                                {rs.label}
+                                            </span>
+                                        </div>
+
+                                        {/* Datos de firma (si existe) */}
+                                        <div className="col-span-4 min-w-0">
+                                            {u.full_name ? (
+                                                <div className="text-[11px] text-slate-400 truncate">
+                                                    <div className="font-medium text-white truncate">{u.full_name}</div>
+                                                    {u.license_number && (
+                                                        <div className="text-[9px] text-slate-600 truncate">{u.license_number}</div>
+                                                    )}
                                                 </div>
+                                            ) : (
+                                                <div className="text-[10px] text-slate-600 italic">Sin datos de firma</div>
                                             )}
                                         </div>
-                                        {!isCurrentUser && (
-                                            <button
-                                                onClick={() => handleDelete(u.id, u.email)}
-                                                disabled={deleting === u.id}
-                                                className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/5 rounded-lg transition-colors disabled:opacity-50"
-                                            >
-                                                {deleting === u.id
-                                                    ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                    : <Trash2 className="w-4 h-4" />
-                                                }
-                                            </button>
-                                        )}
+
+                                        {/* Acciones */}
+                                        <div className="col-span-2 flex items-center justify-end gap-1">
+                                            {isCurrentUser ? (
+                                                <div className="text-[9px] text-slate-600 font-semibold">
+                                                    (Tú)
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleDelete(u.id, u.email)}
+                                                    disabled={deleting === u.id}
+                                                    className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title={`Eliminar ${u.email}`}
+                                                >
+                                                    {deleting === u.id
+                                                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                        : <Trash2 className="w-4 h-4" />
+                                                    }
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}
