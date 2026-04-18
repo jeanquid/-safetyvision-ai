@@ -22,8 +22,19 @@ async function autoMigrate() {
                 role TEXT NOT NULL,
                 tenant_id TEXT NOT NULL,
                 display_name TEXT,
+                full_name TEXT,
+                license_number TEXT,
+                job_title TEXT DEFAULT 'Inspector de Seguridad e Higiene',
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+        `);
+
+        // Migration for existing users
+        await db.query(`
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS full_name TEXT,
+            ADD COLUMN IF NOT EXISTS license_number TEXT,
+            ADD COLUMN IF NOT EXISTS job_title TEXT DEFAULT 'Inspector de Seguridad e Higiene';
         `);
 
         // Inspections
