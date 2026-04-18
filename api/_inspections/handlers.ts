@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { compressImage } from '../_compress-image.js';
 import { createInspection, getInspection, updateInspection, listInspections, deleteInspection, getDashboardStats, saveAiFeedback } from '../_store.js';
 import { savePhoto } from '../_storage.js';
 import { analyzeImageWithGemini, analyzeTextDescription, validateImage } from '../_ai-engine.js';
@@ -10,14 +11,24 @@ import { logger } from '../_logger.js';
 export const analyzeHandler = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const { imageBase64, mimeType, description, plant, sector } = req.body;
+        let { imageBase64, mimeType, description, plant, sector } = req.body;
 
         if (!imageBase64 && !description) {
             return res.status(400).json({ error: 'imageBase64 or description required' });
         }
 
-        // --- PHASE 4: Industrial Validation ---
+        // --- PHASE 4: Compression & Industrial Validation ---
+        let compressionStats;
         if (imageBase64) {
+            const compressed = await compressImage(imageBase64, mimeType || 'image/jpeg');
+            imageBase64 = compressed.base64;
+            mimeType = compressed.mimeType;
+            compressionStats = {
+                originalKB: compressed.originalSizeKB,
+                compressedKB: compressed.compressedSizeKB,
+                reduction: compressed.reductionPct,
+            };
+
             const validation = await validateImage(imageBase64, mimeType || 'image/jpeg');
             if (!validation.valid) {
                 return res.status(400).json({
@@ -40,6 +51,7 @@ export const analyzeHandler = async (req: Request, res: Response) => {
             risks: result.risks,
             model: result.model,
             analyzedAt: new Date().toISOString(),
+            compression: compressionStats,
         });
     } catch (error: any) {
         logger.error('inspections', 'Analysis failed', { error: error.message });
