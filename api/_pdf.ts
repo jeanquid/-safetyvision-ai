@@ -2,134 +2,248 @@ import PDFDocument from 'pdfkit';
 import { InspectionState } from './_types.js';
 import { getPhoto } from './_storage.js';
 
+// ── Colores de marca ──────────────────────────────────────────────────────────
+const HSE_GREEN   = '#16a34a';
+const HSE_GREEN_L = '#dcfce7'; // fondo claro para secciones
+const RISK_COLORS: Record<string, { text: string; bg: string; label: string }> = {
+    alto:  { text: '#991b1b', bg: '#fee2e2', label: 'ALTO'  },
+    medio: { text: '#92400e', bg: '#fef3c7', label: 'MEDIO' },
+    bajo:  { text: '#166534', bg: '#dcfce7', label: 'BAJO'  },
+};
+const GRAY_LINE  = '#e2e8f0';
+const GRAY_TEXT  = '#64748b';
+const PAGE_W     = 595.28; // A4 ancho en puntos
+const MARGIN     = 50;
+const CONTENT_W  = PAGE_W - MARGIN * 2;
+
 export async function generateInspectionPDF(inspection: InspectionState): Promise<Buffer> {
-    // Resolver la foto antes de abrir el stream del PDF
+    // Resolver foto antes de abrir el stream
     let photoBuffer: Buffer | null = null;
-    if (inspection.photoUrl && inspection.photoUrl.startsWith('photo:')) {
-        const photoId = inspection.photoUrl.replace('photo:', '');
+    if (inspection.photoUrl?.startsWith('photo:')) {
         try {
-            const photo = await getPhoto(photoId);
-            if (photo) {
-                photoBuffer = Buffer.from(photo.data, 'base64');
-            }
-        } catch { /* si falla, el PDF se genera igual sin foto */ }
+            const photo = await getPhoto(inspection.photoUrl.replace('photo:', ''));
+            if (photo) photoBuffer = Buffer.from(photo.data, 'base64');
+        } catch { /* PDF se genera igual sin foto */ }
     }
 
     return new Promise((resolve, reject) => {
-        const doc = new PDFDocument({ size: 'A4', margin: 50 });
+        const doc = new PDFDocument({ size: 'A4', margin: MARGIN, bufferPages: true });
         const chunks: Buffer[] = [];
-
-        doc.on('data', chunk => chunks.push(chunk));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('data', c => chunks.push(c));
+        doc.on('end',  () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
-        // Header
-        doc.fontSize(20).font('Helvetica-Bold')
-           .text('SafetyVision AI', { align: 'center' });
-        doc.fontSize(10).font('Helvetica')
-           .text('Reporte de Inspección de Seguridad', { align: 'center' });
-        doc.moveDown(1.5);
+        // ── HEADER ───────────────────────────────────────────────────────────
+        // Banda verde HSE
+        doc.rect(0, 0, PAGE_W, 70).fill(HSE_GREEN);
 
-        // Info general
-        doc.fontSize(12).font('Helvetica-Bold').text('Datos de la Inspección');
-        doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#CCCCCC');
-        doc.moveDown(0.5);
-        doc.fontSize(10).font('Helvetica');
+        // Isotipo HSE: círculo blanco con "hse"
+        doc.circle(MARGIN + 20, 35, 20).fill('#ffffff');
+        doc.fontSize(10).font('Helvetica-Bold').fillColor(HSE_GREEN)
+           .text('hse', MARGIN + 8, 30, { width: 24, align: 'center' });
 
-        const info = [
-            ['ID', inspection.inspectionId.substring(0, 8)],
-            ['Fecha', new Date(inspection.createdAt).toLocaleString('es-AR')],
-            ['Empresa', inspection.companyName || '-'],
-            ['Planta', inspection.plant],
-            ['Sector', inspection.sector],
-            ['Operador', inspection.operator],
-            ['Estado', inspection.task.status.toUpperCase()],
+        // Nombre empresa
+        doc.fontSize(18).font('Helvetica-Bold').fillColor('#ffffff')
+           .text('HSE INGENIERIA', MARGIN + 50, 18);
+        doc.fontSize(8).font('Helvetica').fillColor('rgba(255,255,255,0.75)')
+           .text('Seguridad e Higiene Industrial', MARGIN + 50, 40);
+
+        // SafetyVision a la derecha del header
+        doc.fontSize(7).font('Helvetica').fillColor('rgba(255,255,255,0.6)')
+           .text('Powered by SafetyVision AI · Nodo8', 0, 55, { align: 'right', width: PAGE_W - MARGIN });
+
+        doc.moveDown(0);
+        doc.y = 85; // posición después del header
+
+        // Título del documento
+        doc.fontSize(14).font('Helvetica-Bold').fillColor('#0f172a')
+           .text('ACTA DE INSPECCIÓN DE SEGURIDAD', MARGIN, doc.y, { align: 'center', width: CONTENT_W });
+        doc.moveDown(0.3);
+
+        // Número de inspección y fecha alineados
+        const fechaStr = new Date(inspection.createdAt).toLocaleDateString('es-AR', {
+            day: '2-digit', month: 'long', year: 'numeric'
+        });
+        doc.fontSize(9).font('Helvetica').fillColor(GRAY_TEXT)
+           .text(`Nº ${inspection.inspectionId.substring(0, 8).toUpperCase()}   ·   ${fechaStr}`,
+               MARGIN, doc.y, { align: 'center', width: CONTENT_W });
+        doc.moveDown(1.2);
+
+        // ── SECCIÓN: DATOS DE LA INSPECCIÓN ──────────────────────────────────
+        sectionHeader(doc, 'DATOS DE LA INSPECCIÓN');
+
+        const infoRows: [string, string][] = [
+            ['Empresa inspeccionada', inspection.companyName || '-'],
+            ['Planta / Instalación',  inspection.plant],
+            ['Sector',                inspection.sector || '-'],
+            ['Inspector / Operador',  inspection.operator],
+            ['Estado de tarea',       inspection.task.status === 'resuelto'
+                ? 'RESUELTA' : inspection.task.status === 'en_progreso'
+                ? 'EN PROGRESO' : 'PENDIENTE'],
         ];
 
-        info.forEach(([label, value]) => {
-            doc.font('Helvetica-Bold').text(`${label}: `, { continued: true });
-            doc.font('Helvetica').text(value);
-        });
-
-        doc.moveDown(1);
-
-        // Riesgos
-        doc.fontSize(12).font('Helvetica-Bold').text('Riesgos Detectados');
-        doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#CCCCCC');
-        doc.moveDown(0.5);
-
-        const levelColors: Record<string, string> = {
-            alto: '#DC2626', medio: '#D97706', bajo: '#16A34A'
-        };
-
-        inspection.risks.forEach((risk, i) => {
-            const color = levelColors[risk.level] || '#666666';
-            doc.fontSize(10).font('Helvetica-Bold')
-               .fillColor(color)
-               .text(`${i + 1}. [${risk.level.toUpperCase()}] ${risk.category.toUpperCase()}`);
-            doc.fillColor('#000000').font('Helvetica')
-               .text(risk.description);
-            if (risk.recommendation) {
-                doc.font('Helvetica-Oblique')
-                   .text(`→ ${risk.recommendation}`);
+        infoRows.forEach(([label, value], i) => {
+            const rowY = doc.y;
+            if (i % 2 === 0) {
+                doc.rect(MARGIN, rowY, CONTENT_W, 18).fill('#f8fafc');
             }
-            doc.font('Helvetica').fillColor('#999999')
-               .text(`Confianza: ${risk.confidence}% | Modelo: ${risk.aiModel || 'N/A'}`, {
-                   align: 'right',
-               });
-            doc.fillColor('#000000');
-            doc.moveDown(0.5);
+            doc.fontSize(9).font('Helvetica-Bold').fillColor(GRAY_TEXT)
+               .text(label, MARGIN + 6, rowY + 4, { width: 160, continued: false });
+            doc.fontSize(9).font('Helvetica').fillColor('#0f172a')
+               .text(value, MARGIN + 170, rowY + 4, { width: CONTENT_W - 170 });
+            doc.y = rowY + 18;
         });
 
         doc.moveDown(1);
 
-        // Tarea correctiva
-        doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000')
-           .text('Tarea Correctiva');
-        doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#CCCCCC');
-        doc.moveDown(0.5);
-        doc.fontSize(10).font('Helvetica');
-        doc.font('Helvetica-Bold').text('Acción: ', { continued: true });
-        doc.font('Helvetica').text(inspection.task.action);
-        doc.font('Helvetica-Bold').text('Responsable: ', { continued: true });
-        doc.font('Helvetica').text(inspection.task.responsible);
-        doc.font('Helvetica-Bold').text('Plazo: ', { continued: true });
-        doc.font('Helvetica').text(inspection.task.deadline);
-        if (inspection.task.resolvedAt) {
-            doc.font('Helvetica-Bold').text('Resuelto: ', { continued: true });
-            doc.font('Helvetica').text(
-                `${new Date(inspection.task.resolvedAt).toLocaleString('es-AR')} por ${inspection.task.resolvedBy || '-'}`
-            );
+        // ── SECCIÓN: RESUMEN DE RIESGOS ──────────────────────────────────────
+        sectionHeader(doc, 'RIESGOS DETECTADOS POR IA');
+
+        if (inspection.risks.length === 0) {
+            doc.fontSize(10).font('Helvetica').fillColor(GRAY_TEXT)
+               .text('No se detectaron riesgos en esta inspección.', { align: 'center' });
+            doc.moveDown(1);
+        } else {
+            inspection.risks.forEach((risk, i) => {
+                const colors = RISK_COLORS[risk.level] || RISK_COLORS.medio;
+                const catLabel = risk.category === 'epp' ? 'EPP'
+                    : risk.category === 'condiciones' ? 'CONDICIONES'
+                    : 'COMPORTAMIENTO';
+
+                // Verificar salto de página
+                if (doc.y + 70 > doc.page.height - 80) doc.addPage();
+
+                const blockY = doc.y;
+
+                // Fondo de color según nivel
+                doc.rect(MARGIN, blockY, CONTENT_W, 62).fill(colors.bg);
+
+                // Borde izquierdo de color
+                doc.rect(MARGIN, blockY, 4, 62).fill(colors.text);
+
+                // Badge nivel
+                doc.rect(PAGE_W - MARGIN - 54, blockY + 6, 48, 14).fill(colors.text);
+                doc.fontSize(7).font('Helvetica-Bold').fillColor('#ffffff')
+                   .text(colors.label, PAGE_W - MARGIN - 54, blockY + 9,
+                       { width: 48, align: 'center' });
+
+                // Número y categoría
+                doc.fontSize(8).font('Helvetica-Bold').fillColor(colors.text)
+                   .text(`${i + 1}. ${catLabel}`, MARGIN + 10, blockY + 7);
+
+                // Descripción
+                doc.fontSize(9).font('Helvetica').fillColor('#1e293b')
+                   .text(risk.description, MARGIN + 10, blockY + 20,
+                       { width: CONTENT_W - 70, lineBreak: false });
+
+                // Recomendación
+                if (risk.recommendation) {
+                    doc.fontSize(8).font('Helvetica-Oblique').fillColor(colors.text)
+                       .text(`→ ${risk.recommendation}`,
+                           MARGIN + 10, blockY + 36,
+                           { width: CONTENT_W - 70, lineBreak: false });
+                }
+
+                // Confianza IA (discreto)
+                doc.fontSize(7).font('Helvetica').fillColor('#94a3b8')
+                   .text(`Confianza IA: ${risk.confidence}%`,
+                       MARGIN + 10, blockY + 50);
+
+                doc.y = blockY + 68;
+                doc.moveDown(0.2);
+            });
         }
 
+        doc.moveDown(0.8);
+
+        // ── SECCIÓN: PLAN DE ACCIÓN ───────────────────────────────────────────
+        if (doc.y + 100 > doc.page.height - 80) doc.addPage();
+
+        sectionHeader(doc, 'PLAN DE ACCIÓN CORRECTIVA');
+
+        const actionRows: [string, string][] = [
+            ['Acción requerida', inspection.task.action || '-'],
+            ['Responsable',      inspection.task.responsible || '-'],
+            ['Plazo máximo',     inspection.task.deadline || '-'],
+        ];
+
+        if (inspection.task.resolvedAt) {
+            actionRows.push(['Resuelto el', new Date(inspection.task.resolvedAt)
+                .toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })]);
+            actionRows.push(['Resuelto por', inspection.task.resolvedBy || '-']);
+        }
+
+        actionRows.forEach(([label, value], i) => {
+            const rowY = doc.y;
+            if (i % 2 === 0) doc.rect(MARGIN, rowY, CONTENT_W, 18).fill('#f8fafc');
+            doc.fontSize(9).font('Helvetica-Bold').fillColor(GRAY_TEXT)
+               .text(label, MARGIN + 6, rowY + 4, { width: 160 });
+            doc.fontSize(9).font('Helvetica').fillColor('#0f172a')
+               .text(value, MARGIN + 170, rowY + 4, { width: CONTENT_W - 170 });
+            doc.y = rowY + 18;
+        });
+
         doc.moveDown(1);
 
-        // Evidencia fotográfica
+        // ── SECCIÓN: EVIDENCIA FOTOGRÁFICA ────────────────────────────────────
         if (photoBuffer) {
-            doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000')
-               .text('Evidencia Fotográfica');
-            doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#CCCCCC');
-            doc.moveDown(0.5);
+            if (doc.y + 220 > doc.page.height - 80) doc.addPage();
+
+            sectionHeader(doc, 'EVIDENCIA FOTOGRÁFICA');
             try {
                 doc.image(photoBuffer, {
-                    fit: [495, 280],
+                    fit: [CONTENT_W, 240],
                     align: 'center',
                 });
             } catch {
-                doc.fontSize(10).font('Helvetica').fillColor('#999999')
+                doc.fontSize(9).font('Helvetica').fillColor(GRAY_TEXT)
                    .text('(No se pudo incrustar la imagen en este reporte)');
             }
             doc.moveDown(1);
         }
 
-        // Footer
-        doc.moveDown(2);
-        doc.fontSize(8).fillColor('#999999')
-           .text(
-               `Generado por SafetyVision AI el ${new Date().toLocaleString('es-AR')}`,
-               { align: 'center' }
-           );
+        // ── FIRMA ─────────────────────────────────────────────────────────────
+        if (doc.y + 80 > doc.page.height - 80) doc.addPage();
+        doc.moveDown(1.5);
+        doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + 160, doc.y).stroke(GRAY_LINE);
+        doc.moveDown(0.3);
+        doc.fontSize(8).font('Helvetica').fillColor(GRAY_TEXT)
+           .text('Firma y sello del inspector', MARGIN, doc.y);
+        doc.fontSize(8).font('Helvetica').fillColor(GRAY_TEXT)
+           .text(inspection.operator, MARGIN, doc.y + 10);
+
+        // ── FOOTER en todas las páginas ────────────────────────────────────────
+        const totalPages = doc.bufferedPageRange().count;
+        for (let i = 0; i < totalPages; i++) {
+            doc.switchToPage(i);
+            // Banda footer
+            doc.rect(0, doc.page.height - 36, PAGE_W, 36).fill('#f1f5f9');
+            doc.moveTo(0, doc.page.height - 36).lineTo(PAGE_W, doc.page.height - 36).stroke(GRAY_LINE);
+            // Texto izquierda
+            doc.fontSize(7).font('Helvetica').fillColor(GRAY_TEXT)
+               .text(
+                   `Generado el ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })} · HSE Ingeniería`,
+                   MARGIN, doc.page.height - 23
+               );
+            // Texto derecha: página
+            doc.fontSize(7).font('Helvetica').fillColor(GRAY_TEXT)
+               .text(
+                   `Página ${i + 1} de ${totalPages}   ·   SafetyVision AI · Nodo8`,
+                   0, doc.page.height - 23,
+                   { align: 'right', width: PAGE_W - MARGIN }
+               );
+        }
 
         doc.end();
     });
+}
+
+// ── Helper: encabezado de sección ─────────────────────────────────────────────
+function sectionHeader(doc: PDFKit.PDFDocument, title: string) {
+    const y = doc.y;
+    doc.rect(MARGIN, y, CONTENT_W, 20).fill(HSE_GREEN);
+    doc.rect(MARGIN, y, 3, 20).fill('#ffffff');
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff')
+       .text(title, MARGIN + 10, y + 5, { width: CONTENT_W - 20 });
+    doc.y = y + 24;
 }
