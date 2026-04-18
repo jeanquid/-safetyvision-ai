@@ -10,6 +10,51 @@ const RISK_META: Record<string, { color: string; bg: string; label: string }> = 
 
 const CAT_ICONS: Record<string, string> = { epp: '🦺', condiciones: '🏭', comportamiento: '🚧' };
 
+/**
+ * Comprime una imagen en el navegador usando Canvas.
+ * Redimensiona a maxWidth y convierte a JPEG con calidad reducida.
+ * Devuelve el base64 SIN prefijo data:...
+ */
+function compressImageClient(
+    file: File,
+    maxWidth: number = 1280,
+    quality: number = 0.7
+): Promise<{ base64: string; mimeType: string; originalSizeKB: number; compressedSizeKB: number }> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            // Calcular dimensiones manteniendo aspect ratio
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+            }
+
+            // Dibujar en canvas redimensionado
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { reject(new Error('Canvas not supported')); return; }
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Exportar como JPEG comprimido
+            const dataUrl = canvas.toDataURL('image/jpeg', quality);
+            const base64 = dataUrl.split(',')[1];
+
+            const originalSizeKB = Math.round(file.size / 1024);
+            const compressedSizeKB = Math.round((base64.length * 3) / 4 / 1024);
+
+            console.log(`[compress] ${originalSizeKB}KB → ${compressedSizeKB}KB (-${Math.round((1 - compressedSizeKB / originalSizeKB) * 100)}%)`);
+
+            resolve({ base64, mimeType: 'image/jpeg', originalSizeKB, compressedSizeKB });
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = URL.createObjectURL(file);
+    });
+}
+
 interface Props {
     onComplete: () => void;
     selectedCompanyId?: string;
@@ -76,17 +121,28 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
         loadPlants();
     }, [companyId]);
 
-    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        setMimeType(file.type || 'image/jpeg');
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const full = ev.target?.result as string;
-            setImagePreview(full);
-            setImageBase64(full.split(',')[1]);
-        };
-        reader.readAsDataURL(file);
+
+        try {
+            // Comprimir en el cliente antes de enviar (evita el límite de 4.5MB de Vercel)
+            const compressed = await compressImageClient(file, 1280, 0.7);
+            setMimeType(compressed.mimeType);
+            setImageBase64(compressed.base64);
+            setImagePreview(`data:${compressed.mimeType};base64,${compressed.base64}`);
+        } catch (err) {
+            console.error('Compression failed, using original:', err);
+            // Fallback: usar la imagen original si la compresión falla
+            setMimeType(file.type || 'image/jpeg');
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const full = ev.target?.result as string;
+                setImagePreview(full);
+                setImageBase64(full.split(',')[1]);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleAnalyze = async () => {
