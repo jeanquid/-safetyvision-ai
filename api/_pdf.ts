@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { InspectionState } from './_types.js';
 import { getPhoto } from './_storage.js';
+import db from './_db.js';
 
 // ── Colores de marca ──────────────────────────────────────────────────────────
 const HSE_GREEN   = '#16a34a';
@@ -16,6 +17,31 @@ const PAGE_W     = 595.28; // A4 ancho en puntos
 const MARGIN     = 50;
 const CONTENT_W  = PAGE_W - MARGIN * 2;
 
+async function getInspectorSignature(operatorName: string, tenantId: string): Promise<{
+    fullName: string | null;
+    licenseNumber: string | null;
+    jobTitle: string | null;
+} | null> {
+    try {
+        const result = await db.query(
+            `SELECT full_name, license_number, job_title
+             FROM users
+             WHERE tenant_id = $1 AND (display_name = $2 OR full_name = $2)
+             LIMIT 1`,
+            [tenantId, operatorName]
+        );
+        if (result.rows.length === 0) return null;
+        const row = result.rows[0];
+        return {
+            fullName: row.full_name || null,
+            licenseNumber: row.license_number || null,
+            jobTitle: row.job_title || null,
+        };
+    } catch {
+        return null;
+    }
+}
+
 export async function generateInspectionPDF(inspection: InspectionState): Promise<Buffer> {
     // Resolver foto antes de abrir el stream
     let photoBuffer: Buffer | null = null;
@@ -25,6 +51,9 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
             if (photo) photoBuffer = Buffer.from(photo.data, 'base64');
         } catch { /* PDF se genera igual sin foto */ }
     }
+
+    // Buscar datos de firma del inspector
+    const signature = await getInspectorSignature(inspection.operator, inspection.tenantId);
 
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ size: 'A4', margin: MARGIN, bufferPages: true });
@@ -203,14 +232,46 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
         }
 
         // ── FIRMA ─────────────────────────────────────────────────────────────
-        if (doc.y + 80 > doc.page.height - 80) doc.addPage();
-        doc.moveDown(1.5);
-        doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + 160, doc.y).stroke(GRAY_LINE);
-        doc.moveDown(0.3);
-        doc.fontSize(8).font('Helvetica').fillColor(GRAY_TEXT)
-           .text('Firma y sello del inspector', MARGIN, doc.y);
-        doc.fontSize(8).font('Helvetica').fillColor(GRAY_TEXT)
-           .text(inspection.operator, MARGIN, doc.y + 10);
+        if (doc.y + 100 > doc.page.height - 80) doc.addPage();
+        doc.moveDown(2);
+
+        const firmaX = MARGIN;
+        const firmaW = 200;
+        const firmaY = doc.y;
+
+        // Caja de firma con borde
+        doc.rect(firmaX, firmaY, firmaW, 60).stroke(GRAY_LINE);
+
+        // Línea de firma dentro de la caja
+        doc.moveTo(firmaX + 10, firmaY + 28).lineTo(firmaX + firmaW - 10, firmaY + 28).stroke(GRAY_LINE);
+        doc.fontSize(7).font('Helvetica').fillColor(GRAY_TEXT)
+           .text('Firma', firmaX + 10, firmaY + 30);
+
+        // Nombre completo (si está disponible)
+        const signatureName = signature?.fullName || inspection.operator;
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0f172a')
+           .text(signatureName, firmaX + 10, firmaY + 42, { width: firmaW - 20 });
+
+        // Sello: función y matrícula
+        const selloLines: string[] = [];
+        if (signature?.jobTitle) selloLines.push(signature.jobTitle);
+        if (signature?.licenseNumber) selloLines.push(signature.licenseNumber);
+        if (selloLines.length === 0) selloLines.push('Inspector de Seguridad');
+
+        // Caja de sello a la derecha de la firma
+        const selloX = firmaX + firmaW + 20;
+        const selloW = 180;
+        doc.rect(selloX, firmaY, selloW, 60).dash(3, { space: 3 }).stroke('#94a3b8');
+        doc.undash();
+
+        doc.fontSize(7).font('Helvetica-Bold').fillColor(HSE_GREEN)
+           .text('SELLO', selloX + 10, firmaY + 8);
+        selloLines.forEach((line, i) => {
+            doc.fontSize(8).font('Helvetica').fillColor('#0f172a')
+               .text(line, selloX + 10, firmaY + 20 + (i * 13), { width: selloW - 20 });
+        });
+        doc.fontSize(7).font('Helvetica').fillColor(GRAY_TEXT)
+           .text('HSE Ingeniería', selloX + 10, firmaY + 48);
 
         // ── FOOTER en todas las páginas ────────────────────────────────────────
         const totalPages = doc.bufferedPageRange().count;

@@ -12,7 +12,7 @@ export const listUsersHandler = async (req: Request, res: Response) => {
         }
 
         const result = await db.query(
-            `SELECT id, email, role, display_name, created_at
+            `SELECT id, email, role, display_name, full_name, license_number, job_title, created_at
              FROM users WHERE tenant_id = $1
              ORDER BY created_at DESC`,
             [user.tenantId]
@@ -32,7 +32,7 @@ export const createUserHandler = async (req: Request, res: Response) => {
             return res.status(403).json({ error: 'Admin only' });
         }
 
-        const { email, password, role, displayName } = req.body;
+        const { email, password, role, displayName, fullName, licenseNumber, jobTitle } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password required' });
@@ -54,11 +54,21 @@ export const createUserHandler = async (req: Request, res: Response) => {
         const id = uuidv4();
 
         await db.query(`
-            INSERT INTO users (id, email, password_hash, role, tenant_id, display_name)
-            VALUES ($1, $2, $3, $4, $5, $6)
-        `, [id, email.toLowerCase(), passwordHash, role, adminUser.tenantId, displayName || email.split('@')[0]]);
+            INSERT INTO users (id, email, password_hash, role, tenant_id, display_name, full_name, license_number, job_title)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [
+            id,
+            email.toLowerCase(),
+            passwordHash,
+            role,
+            adminUser.tenantId,
+            displayName || email.split('@')[0],
+            fullName || null,
+            licenseNumber || null,
+            jobTitle || 'Inspector de Seguridad e Higiene',
+        ]);
 
-        res.json({ ok: true, user: { id, email, role, displayName } });
+        res.json({ ok: true, user: { id, email, role, displayName, fullName, licenseNumber, jobTitle } });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

@@ -5,6 +5,9 @@ export interface User {
     role: 'admin' | 'inspector' | 'supervisor';
     tenantId: string;
     displayName: string;
+    fullName?: string;
+    licenseNumber?: string;
+    jobTitle?: string;
     createdAt: string;
 }
 
@@ -14,6 +17,9 @@ export interface AuthPayload {
     role: 'admin' | 'inspector' | 'supervisor';
     tenantId: string;
     displayName: string;
+    fullName?: string;
+    licenseNumber?: string;
+    jobTitle?: string;
 }
 
 export interface LoginRequest {

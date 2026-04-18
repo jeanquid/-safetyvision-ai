@@ -10,6 +10,9 @@ interface UserRecord {
     email: string;
     role: string;
     display_name: string;
+    full_name?: string;
+    license_number?: string;
+    job_title?: string;
     created_at: string;
 }
 
@@ -34,6 +37,9 @@ export const AdminPanel: React.FC = () => {
     const [newPassword, setNewPassword] = useState('');
     const [newRole, setNewRole] = useState<'inspector' | 'supervisor' | 'admin'>('inspector');
     const [newName, setNewName] = useState('');
+    const [newFullName, setNewFullName] = useState('');
+    const [newLicenseNumber, setNewLicenseNumber] = useState('');
+    const [newJobTitle, setNewJobTitle] = useState('Inspector de Seguridad e Higiene');
     const [creating, setCreating] = useState(false);
 
     // Form state: Plants
@@ -84,6 +90,9 @@ export const AdminPanel: React.FC = () => {
                     password: newPassword,
                     role: newRole,
                     displayName: newName || newEmail.split('@')[0],
+                    fullName: newFullName || undefined,
+                    licenseNumber: newLicenseNumber || undefined,
+                    jobTitle: newJobTitle || undefined,
                 }),
             });
             const data = await res.json();
@@ -93,6 +102,9 @@ export const AdminPanel: React.FC = () => {
             setNewEmail('');
             setNewPassword('');
             setNewName('');
+            setNewFullName('');
+            setNewLicenseNumber('');
+            setNewJobTitle('Inspector de Seguridad e Higiene');
             setNewRole('inspector');
             setShowForm(false);
             fetchData();
@@ -308,6 +320,53 @@ export const AdminPanel: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* Campos de firma — solo visibles cuando el rol es inspector */}
+                            {newRole === 'inspector' && (
+                                <div className="border-t border-slate-800 pt-4 space-y-3">
+                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold flex items-center gap-1.5">
+                                        <Eye className="w-3 h-3" /> Datos de firma para actas de inspección
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                                                Nombre completo (para firma)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={newFullName}
+                                                onChange={e => setNewFullName(e.target.value)}
+                                                placeholder="Ej: Ing. Juan García"
+                                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                                                Matrícula / N° habilitación
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={newLicenseNumber}
+                                                onChange={e => setNewLicenseNumber(e.target.value)}
+                                                placeholder="Ej: Mat. 4521 — CPSI"
+                                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                                                Función / Sello
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={newJobTitle}
+                                                onChange={e => setNewJobTitle(e.target.value)}
+                                                placeholder="Inspector de Seguridad e Higiene"
+                                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <button
                                 onClick={handleCreate}
                                 disabled={creating}
@@ -347,6 +406,12 @@ export const AdminPanel: React.FC = () => {
                                                 </span>
                                             </div>
                                             <div className="text-xs text-slate-500 truncate">{u.email}</div>
+                                            {/* Si el usuario tiene datos de firma, mostrarlos */}
+                                            {u.full_name && (
+                                                <div className="text-[10px] text-slate-600 mt-0.5 font-mono">
+                                                    {u.full_name}{u.license_number ? ` · ${u.license_number}` : ''}
+                                                </div>
+                                            )}
                                         </div>
                                         {!isCurrentUser && (
                                             <button

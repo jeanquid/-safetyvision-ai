@@ -19,6 +19,15 @@ async function migrate() {
         `);
         console.log('✅ Table "users" OK.');
 
+        console.log('--- Adding signature fields to users ---');
+        await db.query(`
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS full_name TEXT,
+            ADD COLUMN IF NOT EXISTS license_number TEXT,
+            ADD COLUMN IF NOT EXISTS job_title TEXT DEFAULT 'Inspector de Seguridad e Higiene';
+        `);
+        console.log('✅ Signature fields added to users.');
+
         console.log('--- Creating table: inspections ---');
         await db.query(`
             CREATE TABLE IF NOT EXISTS inspections (
