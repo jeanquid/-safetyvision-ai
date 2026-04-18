@@ -80,6 +80,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState('');
+    const [analysisStep, setAnalysisStep] = useState(0);
     
     const [companies, setCompanies] = useState<any[]>([]);
     const [plants, setPlants] = useState<{ name: string; sectors: string[] }[]>([]);
@@ -152,6 +153,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
         
         setError('');
         setStep('analyzing');
+        setAnalysisStep(0); // paso 0: comprimiendo
 
         try {
             const body: any = { plant, sector };
@@ -162,14 +164,23 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                 body.description = description;
             }
 
+            setAnalysisStep(1); // paso 1: enviando a IA
+
             const res = await authFetch('/api/inspections/analyze', {
                 method: 'POST',
                 body: JSON.stringify(body),
             });
+
+            setAnalysisStep(2); // paso 2: procesando respuesta
+
             const data = await res.json();
 
-
             if (!res.ok || !data.ok) throw new Error(data.error || 'Analysis failed');
+
+            setAnalysisStep(3); // paso 3: listo
+            
+            // Pequeña pausa para que el usuario vea el check verde
+            await new Promise(r => setTimeout(r, 600));
 
             setRisks(data.risks || []);
             setOriginalRisks(JSON.parse(JSON.stringify(data.risks || [])));
@@ -178,6 +189,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
         } catch (err: any) {
             setError(err.message);
             setStep('form');
+            setAnalysisStep(0);
         }
     };
 
@@ -323,11 +335,65 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
     }
 
     if (step === 'analyzing') {
+        const steps = [
+            { label: 'Comprimiendo imagen', sublabel: 'Optimizando para análisis' },
+            { label: 'Enviando a Gemini AI', sublabel: 'Google procesa la imagen' },
+            { label: 'Detectando riesgos', sublabel: 'Clasificando por gravedad' },
+            { label: 'Análisis completo', sublabel: 'Preparando resultados' },
+        ];
+
         return (
-            <div className="max-w-md mx-auto text-center py-20">
-                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-6" />
-                <h2 className="text-lg font-bold text-white mb-2">Evaluando Riesgos en {companyName}</h2>
-                <p className="text-slate-500 text-sm">La IA de Google está analizando las condiciones laborales...</p>
+            <div className="max-w-sm mx-auto py-16 px-4">
+                {/* Ícono animado */}
+                <div className="flex justify-center mb-8">
+                    <div className="relative">
+                        <div className="w-20 h-20 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                            {analysisStep < 3
+                                ? <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+                                : <CheckCircle className="w-8 h-8 text-emerald-400" />
+                            }
+                        </div>
+                        {analysisStep < 3 && (
+                            <div className="absolute inset-0 rounded-full border-2 border-blue-500/30 animate-ping" />
+                        )}
+                    </div>
+                </div>
+
+                {/* Empresa */}
+                <p className="text-center text-xs text-slate-500 uppercase tracking-wider mb-6">
+                    {companyName} · {plant}
+                </p>
+
+                {/* Steps */}
+                <div className="space-y-3">
+                    {steps.map((s, i) => {
+                        const isDone = analysisStep > i;
+                        const isActive = analysisStep === i;
+                        return (
+                            <div key={i} className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
+                                isActive ? 'bg-blue-500/10 border border-blue-500/20' :
+                                isDone ? 'opacity-50' : 'opacity-20'
+                            }`}>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold transition-colors ${
+                                    isDone ? 'bg-emerald-500/20 text-emerald-400' :
+                                    isActive ? 'bg-blue-500/20 text-blue-400' :
+                                    'bg-slate-800 text-slate-600'
+                                }`}>
+                                    {isDone ? '✓' : i + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className={`text-sm font-medium ${isActive ? 'text-white' : isDone ? 'text-slate-400' : 'text-slate-600'}`}>
+                                        {s.label}
+                                    </div>
+                                    {isActive && (
+                                        <div className="text-xs text-slate-500 mt-0.5">{s.sublabel}</div>
+                                    )}
+                                </div>
+                                {isActive && <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin shrink-0" />}
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         );
     }
