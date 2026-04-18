@@ -94,9 +94,26 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="flex-1">
-                            <div className="text-lg font-bold text-white">ID: {ins.inspectionId?.substring(0, 8)}</div>
-                            <div className="text-xs text-slate-500 mt-1">{ins.plant} · {ins.sector} · {ins.operator}</div>
-                            <div className="text-xs text-slate-600 mt-0.5">{new Date(ins.createdAt).toLocaleString('es-AR')}</div>
+                            {/* Banner de alerta si hay riesgos altos */}
+                            {maxLevel === 'alto' && (
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-1.5 mb-3">
+                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                    {(ins.risks || []).filter((r: any) => r.level === 'alto').length} riesgo{(ins.risks || []).filter((r: any) => r.level === 'alto').length !== 1 ? 's' : ''} de nivel ALTO — requiere acción inmediata
+                                </div>
+                            )}
+                            {/* Título legible: Planta + Sector */}
+                            <div className="text-lg font-bold text-white">
+                                {ins.plant}{ins.sector && ins.sector !== 'Sin especificar' ? ` · ${ins.sector}` : ''}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1">
+                                Inspector: {ins.operator} · {new Date(ins.createdAt).toLocaleString('es-AR', {
+                                    day: '2-digit', month: 'short', year: 'numeric',
+                                    hour: '2-digit', minute: '2-digit'
+                                })}
+                            </div>
+                            <div className="text-[10px] text-slate-700 mt-0.5 font-mono">
+                                #{ins.inspectionId?.substring(0, 8)}
+                            </div>
                         </div>
                         <div className="flex flex-col gap-2 items-end">
                             <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${ls.bg} ${ls.color}`}>{ls.label}</span>
@@ -231,10 +248,21 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors truncate">{ins.companyName}</span>
-                                        <div className={`w-1.5 h-1.5 rounded-full ${ts.color.replace('text-', 'bg-')}`} />
+                                        {(ins.risks || []).some((r: any) => r.level === 'alto') && (
+                                            <span className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
+                                                ⚠ ALTO
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="text-[10px] text-slate-500 flex items-center gap-1.5 uppercase font-bold tracking-tight">
-                                        {ins.plant} <span className="opacity-30">|</span> {ins.sector} <span className="opacity-30">|</span> {new Date(ins.createdAt).toLocaleDateString('es-AR')}
+                                        {ins.plant}
+                                        {ins.sector && ins.sector !== 'Sin especificar' && (
+                                            <><span className="opacity-30">|</span> {ins.sector}</>
+                                        )}
+                                        <span className="opacity-30">|</span>
+                                        {new Date(ins.createdAt).toLocaleDateString('es-AR')}
+                                        <span className="opacity-30">|</span>
+                                        <span className="text-slate-600">{(ins.risks || []).length} riesgo{(ins.risks || []).length !== 1 ? 's' : ''}</span>
                                     </div>
                                 </div>
                                 <ChevronRight className="w-4 h-4 text-slate-700 group-hover:text-white transition-colors" />
