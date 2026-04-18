@@ -48,6 +48,16 @@ export async function createApiApp() {
         next();
     });
 
+    // ── Security Headers ──
+    app.use((_req, res, next) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader('X-XSS-Protection', '0');
+        res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+        next();
+    });
+
     // ── Body Parser ──
     app.use(bodyParser.json({ limit: '20mb' }));
     app.use(bodyParser.urlencoded({ limit: '20mb', extended: true }));
@@ -106,9 +116,22 @@ export async function createApiApp() {
     app.post(['/api/auth/login', '/auth/login'], loginLimiter, loginHandler);
     app.get(['/api/auth/me', '/auth/me'], safeAuth, meHandler);
 
+    // NUEVO: Rate limiter para análisis de imágenes (endpoint más caro — llama a Gemini)
+    const analyzeLimiter = rateLimit({
+        windowMs: 60 * 60 * 1000,  // ventana de 1 hora
+        max: 50,                    // máximo 50 análisis por hora por IP
+        message: { ok: false, error: 'Demasiados análisis. Límite: 50 por hora. Intentá más tarde.' },
+        standardHeaders: true,
+        legacyHeaders: false,
+        keyGenerator: (req: any) => {
+            // Limitar por usuario autenticado si existe, sino por IP
+            return req.user?.userId || req.ip || 'unknown';
+        },
+    });
+
     // ── Inspection Routes ──
     const insRouter = express.Router();
-    insRouter.post('/analyze', safeAuth, analyzeHandler);
+    insRouter.post('/analyze', safeAuth, analyzeLimiter, analyzeHandler);
     insRouter.post('/create', safeAuth, createHandler);
     insRouter.get('/list', safeAuth, listHandler);
     insRouter.get('/:id', safeAuth, getHandler);
