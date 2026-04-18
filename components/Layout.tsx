@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Shield, LayoutDashboard, Camera, ClipboardList, LogOut, Menu, X, Users, Building2, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Camera, ClipboardList, LogOut, Menu, X, Users, Building2, ChevronRight } from 'lucide-react';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -34,12 +34,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
                 <div className="h-full flex flex-col">
                     <div className="p-5 border-b border-slate-800 flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-                                <Shield className="w-5 h-5 text-white" />
+                            {/* Isotipo HSE */}
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                                style={{ backgroundColor: '#16a34a' }}>
+                                <span className="text-white font-black text-[11px] tracking-tight leading-none">hse</span>
                             </div>
                             <div>
-                                <div className="font-bold text-sm leading-tight"><span className="text-blue-400">Safety</span>Vision</div>
-                                <div className="text-[9px] text-slate-500 tracking-wider">SEGURIDAD INDUSTRIAL</div>
+                                <div className="font-black text-sm leading-tight text-white tracking-wide uppercase">HSE INGENIERIA</div>
+                                <div className="text-[9px] text-slate-500 tracking-wider font-medium">SafetyVision · Nodo8</div>
                             </div>
                         </div>
                         <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400"><X size={20} /></button>
