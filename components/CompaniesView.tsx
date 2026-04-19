@@ -81,10 +81,12 @@ export const CompaniesView: React.FC<Props> = ({ onSelectCompany, onNewCompany }
                     <button onClick={fetchCompanies} className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800">
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
-                    <button onClick={onNewCompany}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-colors">
-                        <Plus className="w-4 h-4" /> Nueva Empresa
-                    </button>
+                    {user?.role === 'admin' && (
+                        <button onClick={onNewCompany}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-colors">
+                            <Plus className="w-4 h-4" /> Nueva Empresa
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -118,9 +120,11 @@ export const CompaniesView: React.FC<Props> = ({ onSelectCompany, onNewCompany }
                 <div className="text-center py-12">
                     <Building2 className="w-10 h-10 text-slate-700 mx-auto mb-3" />
                     <p className="text-slate-500 text-sm">{search ? 'No se encontraron empresas' : 'No hay empresas registradas'}</p>
-                    <button onClick={onNewCompany} className="mt-3 text-blue-400 text-sm font-semibold hover:text-blue-300">
-                        + Crear la primera empresa
-                    </button>
+                    {user?.role === 'admin' && (
+                        <button onClick={onNewCompany} className="mt-3 text-blue-400 text-sm font-semibold hover:text-blue-300">
+                            + Crear la primera empresa
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
