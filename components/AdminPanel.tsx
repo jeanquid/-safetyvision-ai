@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
     Users as UsersIcon, Plus, Trash2, Loader2, AlertCircle,
-    CheckCircle, Shield, Eye, UserPlus, X, Building
+    CheckCircle, Shield, Eye, UserPlus, X, Building, Building2, ChevronRight
 } from 'lucide-react';
 
 interface UserRecord {
@@ -26,11 +26,13 @@ export const AdminPanel: React.FC = () => {
     const [success, setSuccess] = useState('');
 
     // Tab state
-    const [activeTab, setActiveTab] = useState<'users' | 'plants'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'companies'>('users');
     const [tenantPlants, setTenantPlants] = useState<{ name: string; sectors: string[] }[]>([]);
     const [plantsLoading, setPlantsLoading] = useState(true);
     const [plantsSaving, setPlantsSaving] = useState(false);
     const [tenantName, setTenantName] = useState('');
+    const [companies, setCompanies] = useState<any[]>([]);
+    const [companiesLoading, setCompaniesLoading] = useState(true);
 
     // Form state: Users
     const [newEmail, setNewEmail] = useState('');
@@ -49,10 +51,12 @@ export const AdminPanel: React.FC = () => {
     const fetchData = async () => {
         setLoading(true);
         setPlantsLoading(true);
+        setCompaniesLoading(true);
         try {
-            const [usersRes, configRes] = await Promise.all([
+            const [usersRes, configRes, companiesRes] = await Promise.all([
                 authFetch('/api/users'),
-                authFetch('/api/config')
+                authFetch('/api/config'),
+                authFetch('/api/companies/list'),
             ]);
             
             const usersData = await usersRes.json();
@@ -63,9 +67,13 @@ export const AdminPanel: React.FC = () => {
                 setTenantPlants(configData.tenant.plants || []);
                 setTenantName(configData.tenant.name || '');
             }
+
+            const companiesData = await companiesRes.json();
+            if (companiesData.ok) setCompanies(companiesData.companies || []);
         } catch {}
         setLoading(false);
         setPlantsLoading(false);
+        setCompaniesLoading(false);
     };
 
     useEffect(() => { fetchData(); }, []);
@@ -232,15 +240,15 @@ export const AdminPanel: React.FC = () => {
                     Usuarios
                 </button>
                 <button
-                    onClick={() => { setActiveTab('plants'); setError(''); setSuccess(''); }}
+                    onClick={() => { setActiveTab('companies'); setError(''); setSuccess(''); }}
                     className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
-                        activeTab === 'plants'
+                        activeTab === 'companies'
                             ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
                             : 'text-slate-500 hover:text-white hover:bg-slate-800 border border-transparent'
                     }`}
                 >
-                    <Building className="w-4 h-4" />
-                    Plantas y Sectores
+                    <Building2 className="w-4 h-4" />
+                    Empresas
                 </button>
             </div>
 
@@ -511,94 +519,89 @@ export const AdminPanel: React.FC = () => {
                 </div>
             )}
 
-            {activeTab === 'plants' && (
+            {activeTab === 'companies' && (
                 <div className="space-y-6">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Configuración Industrial</h3>
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
+                            Empresas registradas ({companies.length})
+                        </h3>
                     </div>
 
-                    <p className="text-xs text-slate-500">
-                        Configurá las plantas y sectores de tu empresa. Los inspectores verán estas opciones al crear inspecciones.
-                    </p>
-
-                    {plantsLoading ? (
+                    {companiesLoading ? (
                         <div className="flex items-center justify-center h-40">
                             <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
                         </div>
+                    ) : companies.length === 0 ? (
+                        <div className="text-center py-12 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
+                            <Building2 className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                            <p className="text-slate-500 text-sm font-medium">No hay empresas registradas</p>
+                            <p className="text-slate-600 text-xs mt-1">Creá una desde "Mis Empresas" en el menú lateral</p>
+                        </div>
                     ) : (
-                        <div className="space-y-4">
-                            {/* Plantas existentes */}
-                            {tenantPlants.map((plant) => (
-                                <div key={plant.name} className="bg-slate-900/30 border border-slate-800 rounded-xl p-4">
-                                    <div className="flex items-center justify-between mb-3 shadow-sm">
-                                        <span className="text-sm font-bold text-white flex items-center gap-2">
-                                            <Building className="w-3.5 h-3.5 text-blue-400" />
-                                            {plant.name}
-                                        </span>
-                                        <button
-                                            onClick={() => handleRemovePlant(plant.name)}
-                                            className="text-slate-600 hover:text-red-400 hover:bg-red-500/5 px-2 py-1 rounded transition-colors text-[10px] font-bold"
-                                        >
-                                            ELIMINAR PLANTA
-                                        </button>
+                        <div className="space-y-3">
+                            {companies.map((c: any) => (
+                                <div key={c.companyId}
+                                    className="bg-slate-900/30 border border-slate-800 rounded-xl p-5 hover:bg-slate-800/30 transition-colors">
+                                    {/* Header de empresa */}
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+                                                <Building2 className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-bold text-white">{c.name}</div>
+                                                <div className="text-[10px] text-slate-600">
+                                                    {c.lastInspectionDate
+                                                        ? `Última inspección: ${new Date(c.lastInspectionDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                                                        : 'Sin inspecciones aún'}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {plant.sectors.map(sector => (
-                                            <span key={sector}
-                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 text-slate-300 text-[11px] font-medium rounded-lg border border-slate-700">
-                                                {sector}
-                                                <button
-                                                    onClick={() => handleRemoveSector(plant.name, sector)}
-                                                    className="text-slate-500 hover:text-red-400"
-                                                >×</button>
-                                            </span>
-                                        ))}
-                                        <input
-                                            type="text"
-                                            placeholder="+ Agregar sector..."
-                                            className="px-2.5 py-1 bg-transparent border border-dashed border-slate-700 text-white text-[11px] rounded-lg w-32 focus:outline-none focus:border-blue-500 transition-all font-medium"
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    handleAddSector(plant.name, (e.target as HTMLInputElement).value);
-                                                    (e.target as HTMLInputElement).value = '';
-                                                }
-                                            }}
-                                        />
+
+                                    {/* Stats */}
+                                    <div className="grid grid-cols-4 gap-3 mb-4">
+                                        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                                            <div className="text-lg font-bold text-slate-300 font-mono">{c.totalInspections}</div>
+                                            <div className="text-[9px] text-slate-600 uppercase">Inspecciones</div>
+                                        </div>
+                                        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                                            <div className="text-lg font-bold text-amber-400 font-mono">{c.totalRisks}</div>
+                                            <div className="text-[9px] text-slate-600 uppercase">Riesgos</div>
+                                        </div>
+                                        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                                            <div className="text-lg font-bold text-red-400 font-mono">{c.highRisks}</div>
+                                            <div className="text-[9px] text-slate-600 uppercase">Altos</div>
+                                        </div>
+                                        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                                            <div className="text-lg font-bold text-emerald-400 font-mono">{c.resolvedPct}%</div>
+                                            <div className="text-[9px] text-slate-600 uppercase">Resueltos</div>
+                                        </div>
                                     </div>
+
+                                    {/* Plantas y sectores de esta empresa (si los tiene) */}
+                                    {c.plants && c.plants.length > 0 && (
+                                        <div className="border-t border-slate-800 pt-3">
+                                            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">
+                                                Plantas y Sectores
+                                            </p>
+                                            <div className="space-y-2">
+                                                {c.plants.map((plant: any) => (
+                                                    <div key={plant.name} className="flex items-start gap-2">
+                                                        <Building className="w-3 h-3 text-slate-600 mt-0.5 shrink-0" />
+                                                        <div>
+                                                            <span className="text-xs text-slate-300 font-medium">{plant.name}</span>
+                                                            <span className="text-xs text-slate-600 ml-2">
+                                                                ({(plant.sectors || []).join(', ')})
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
-
-                            {/* Agregar nueva planta */}
-                            <div className="bg-blue-500/5 border border-blue-500/15 rounded-xl p-5 space-y-3">
-                                <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                                    <Plus className="w-3.5 h-3.5" /> Nueva Planta
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <input
-                                        value={newPlantName}
-                                        onChange={e => setNewPlantName(e.target.value)}
-                                        placeholder="Nombre de la planta (ej: Planta Sur)"
-                                        className="px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
-                                    />
-                                    <input
-                                        value={newPlantSectors}
-                                        onChange={e => setNewPlantSectors(e.target.value)}
-                                        placeholder="Sectores (separados por coma)"
-                                        className="px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
-                                    />
-                                </div>
-                                <button onClick={handleAddPlant}
-                                    className="px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl text-xs font-bold hover:bg-blue-600/30 transition-colors">
-                                    Confirmar Planta
-                                </button>
-                            </div>
-
-                            {/* Guardar */}
-                            <button onClick={handleSavePlants} disabled={plantsSaving || tenantPlants.length === 0}
-                                className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/10">
-                                {plantsSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-                                {plantsSaving ? 'Guardando...' : 'Aplicar Cambios a la Configuración'}
-                            </button>
                         </div>
                     )}
                 </div>
