@@ -124,17 +124,35 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
 
                 {photoLoading ? (
                     <div className="flex items-center justify-center h-48 bg-slate-900/30 border border-slate-800 rounded-xl">
-                        <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                        <div className="text-center">
+                            <Loader2 className="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2" />
+                            <p className="text-[10px] text-slate-600">Cargando evidencia...</p>
+                        </div>
                     </div>
                 ) : photoUrl ? (
                     <div className="rounded-xl overflow-hidden border border-slate-800">
                         <div className="text-[10px] text-slate-500 uppercase tracking-wider px-3 py-2 bg-slate-900/50 flex items-center gap-1.5 leading-none">
                             <Camera className="w-3 h-3" /> Evidencia fotográfica
                         </div>
-                        <img src={photoUrl} alt="Evidencia" className="w-full max-h-80 object-contain bg-black/40 cursor-zoom-in"
-                            onClick={() => window.open(photoUrl, '_blank')} />
+                        <img
+                            src={photoUrl}
+                            alt="Evidencia fotográfica de la inspección"
+                            className="w-full max-h-96 object-contain bg-black/40 cursor-zoom-in"
+                            onClick={() => window.open(photoUrl, '_blank')}
+                            onError={(e) => {
+                                console.error('Image render error');
+                                (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                        />
                     </div>
-                ) : null}
+                ) : (
+                    <div className="flex items-center justify-center h-32 bg-slate-900/20 border border-dashed border-slate-800 rounded-xl">
+                        <div className="text-center">
+                            <Camera className="w-5 h-5 text-slate-700 mx-auto mb-1" />
+                            <p className="text-[10px] text-slate-600">Sin evidencia fotográfica</p>
+                        </div>
+                    </div>
+                )}
 
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hallazgos e IA</h3>
                 <div className="space-y-2">
@@ -225,6 +243,11 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
 
                         return (
                             <div key={ins.inspectionId} onClick={async () => {
+                                // Limpiar foto anterior
+                                if (photoUrl) {
+                                    URL.revokeObjectURL(photoUrl);
+                                    setPhotoUrl(null);
+                                }
                                 setSelected(ins);
                                 setPhotoLoading(true);
                                 try {
@@ -232,12 +255,28 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
                                     const data = await res.json();
                                     if (data.ok && data.inspection) {
                                         setSelected(data.inspection);
+                                        // Cargar foto si existe
                                         if (data.inspection.resolvedPhotoUrl) {
-                                            const pr = await authFetch(data.inspection.resolvedPhotoUrl);
-                                            if (pr.ok) setPhotoUrl(URL.createObjectURL(await pr.blob()));
+                                            try {
+                                                const pr = await authFetch(data.inspection.resolvedPhotoUrl);
+                                                if (pr.ok) {
+                                                    const blob = await pr.blob();
+                                                    if (blob.size > 0) {
+                                                        setPhotoUrl(URL.createObjectURL(blob));
+                                                    } else {
+                                                        console.warn('Photo blob is empty');
+                                                    }
+                                                } else {
+                                                    console.warn('Photo fetch failed:', pr.status);
+                                                }
+                                            } catch (photoErr) {
+                                                console.error('Photo load error:', photoErr);
+                                            }
                                         }
                                     }
-                                } catch {}
+                                } catch (err) {
+                                    console.error('Inspection load error:', err);
+                                }
                                 setPhotoLoading(false);
                             }}
                                 className="flex items-center gap-4 p-4 bg-slate-900/30 border border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-800/40 transition-all group"
