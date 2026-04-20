@@ -22,6 +22,12 @@ function AppContent() {
     const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null);
     const { user, isLoading } = useAuth();
 
+    React.useEffect(() => {
+        if (user && user.role === 'admin' && currentView === 'companies') {
+            setCurrentView('admin');
+        }
+    }, [user]);
+
     if (isLoading) return <FullScreenSpinner />;
     if (!user) return <LoginScreen />;
 
