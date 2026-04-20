@@ -29,6 +29,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [expandedUserInspections, setExpandedUserInspections] = useState<string | null>(null);
+    const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [deletingCompany, setDeletingCompany] = useState<string | null>(null);
     const [deletingInspection, setDeletingInspection] = useState<string | null>(null);
@@ -718,10 +719,12 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                         <div className="space-y-3">
                             {companies.map((c: any) => {
                                 const companyInspections = inspections.filter(ins => ins.companyId === c.companyId);
+                                const isExpanded = expandedCompany === c.companyId;
                                 
                                 return (
                                 <div key={c.companyId}
-                                    className="bg-slate-900/30 border border-slate-800 rounded-xl p-5 hover:bg-slate-800/30 transition-colors">
+                                    onClick={() => setExpandedCompany(isExpanded ? null : c.companyId)}
+                                    className={`bg-slate-900/30 border ${isExpanded ? 'border-slate-700 shadow-xl shadow-black/20' : 'border-slate-800'} rounded-xl p-5 hover:bg-slate-800/30 transition-all cursor-pointer`}>
                                     {/* Header de empresa */}
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-3">
@@ -741,7 +744,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                             {/* Botón Ver Dashboard */}
                                             {onSelectCompany && (
                                                 <button
-                                                    onClick={() => onSelectCompany(c.companyId, c.name)}
+                                                    onClick={(e) => { e.stopPropagation(); onSelectCompany(c.companyId, c.name); }}
                                                     className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-colors"
                                                 >
                                                     <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
@@ -781,6 +784,8 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                         </div>
                                     </div>
 
+                                    {isExpanded && (
+                                    <>
                                     {/* Plantas y sectores de esta empresa (si los tiene) */}
                                     {c.plants && c.plants.length > 0 && (
                                         <div className="border-t border-slate-800 pt-3">
@@ -870,6 +875,8 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                 })}
                                             </div>
                                         </div>
+                                    )}
+                                    </>
                                     )}
                                 </div>
                                 );
