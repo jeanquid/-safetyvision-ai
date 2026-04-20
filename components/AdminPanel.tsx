@@ -307,13 +307,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-xl font-bold text-white">Panel de Administración</h2>
-                    <p className="text-slate-500 text-sm mt-0.5">Gestión de usuarios y empresas</p>
-                </div>
-            </div>
+
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-slate-800 pb-3">
