@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
     Users as UsersIcon, Plus, Trash2, Loader2, AlertCircle,
-    CheckCircle, Shield, Eye, UserPlus, X, Building, Building2, ChevronRight, ClipboardList
+    CheckCircle, Shield, Eye, UserPlus, X, Building, Building2, ChevronRight, ClipboardList, LayoutDashboard
 } from 'lucide-react';
 
 interface UserRecord {
@@ -18,9 +18,10 @@ interface UserRecord {
 
 interface Props {
     onNewCompany?: () => void;
+    onSelectCompany?: (id: string, name: string) => void;
 }
 
-export const AdminPanel: React.FC<Props> = ({ onNewCompany }) => {
+export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) => {
     const { authFetch, user } = useAuth();
     const [users, setUsers] = useState<UserRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -641,16 +642,28 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany }) => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={(e) => handleDeleteCompany(e, c.companyId, c.name)}
-                                            disabled={deletingCompany === c.companyId}
-                                            className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
-                                            title="Archivar empresa"
-                                        >
-                                            {deletingCompany === c.companyId
-                                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                : <Trash2 className="w-4 h-4" />}
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            {/* Botón Ver Dashboard */}
+                                            {onSelectCompany && (
+                                                <button
+                                                    onClick={() => onSelectCompany(c.companyId, c.name)}
+                                                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-colors"
+                                                >
+                                                    <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
+                                                </button>
+                                            )}
+                                            {/* Botón Borrar */}
+                                            <button
+                                                onClick={(e) => handleDeleteCompany(e, c.companyId, c.name)}
+                                                disabled={deletingCompany === c.companyId}
+                                                className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+                                                title="Archivar empresa"
+                                            >
+                                                {deletingCompany === c.companyId
+                                                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                    : <Trash2 className="w-4 h-4" />}
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* Stats */}

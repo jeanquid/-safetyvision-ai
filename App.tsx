@@ -70,7 +70,12 @@ function AppContent() {
                 <InspectionsList companyId={selectedCompany?.id} />
             )}
 
-            {currentView === 'admin' && <AdminPanel onNewCompany={() => setCurrentView('new_company')} />}
+            {currentView === 'admin' && (
+                <AdminPanel 
+                    onNewCompany={() => setCurrentView('new_company')} 
+                    onSelectCompany={handleSelectCompany}
+                />
+            )}
         </Layout>
     );
 }
