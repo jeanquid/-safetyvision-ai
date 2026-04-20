@@ -74,8 +74,7 @@ export const CompaniesView: React.FC<Props> = ({ onSelectCompany, onNewCompany }
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-bold text-white">Empresas Inspeccionadas</h2>
-                    <p className="text-slate-500 text-sm mt-0.5">{globalStats.totalCompanies} empresa{globalStats.totalCompanies !== 1 ? 's' : ''} · {globalStats.totalInspections} inspecciones</p>
+                    <h2 className="text-xl font-bold text-white">Seleccionar empresa</h2>
                 </div>
                 <div className="flex gap-2">
                     <button onClick={fetchCompanies} className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800">
