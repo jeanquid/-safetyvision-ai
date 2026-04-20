@@ -12,7 +12,7 @@ import {
     createCompany, listCompanies, getCompany, updateCompany,
     deleteCompany, getCompaniesWithStats, resetCompanyInspections
 } from './_companies.js';
-import { listUsersHandler, createUserHandler, deleteUserHandler } from './_auth/admin-handlers.js';
+import { listUsersHandler, createUserHandler, updateUserHandler, deleteUserHandler } from './_auth/admin-handlers.js';
 import { generateInspectionPDF } from './_pdf.js';
 import { getInspection } from './_store.js';
 import {
@@ -248,7 +248,7 @@ export async function createApiApp() {
     companyRouter.get('/list', safeAuth, async (req, res) => {
         try {
             const user = (req as any).user;
-            const companies = await getCompaniesWithStats(user.tenantId);
+            const companies = await getCompaniesWithStats(user.tenantId, user);
             res.json({ ok: true, companies });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
@@ -346,6 +346,7 @@ export async function createApiApp() {
     // ── Admin Routes ──
     app.get('/api/users', safeAuth, listUsersHandler);
     app.post('/api/users', safeAuth, createUserHandler);
+    app.put('/api/users/:id', safeAuth, updateUserHandler);
     app.delete('/api/users/:id', safeAuth, deleteUserHandler);
 
     // ── Test Gemini connectivity ──

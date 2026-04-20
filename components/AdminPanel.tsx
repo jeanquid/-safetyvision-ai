@@ -14,6 +14,7 @@ interface UserRecord {
     full_name?: string;
     license_number?: string;
     job_title?: string;
+    assigned_companies?: string[];
     created_at: string;
 }
 
@@ -138,6 +139,29 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
             setError(err.message);
         }
         setCreating(false);
+    };
+
+    const handleToggleUserCompany = async (userId: string, companyId: string) => {
+        try {
+            const u = users.find(u => u.id === userId);
+            if (!u) return;
+
+            const existing = u.assigned_companies || [];
+            const isAssigned = existing.includes(companyId);
+            const newList = isAssigned ? existing.filter(id => id !== companyId) : [...existing, companyId];
+
+            // Optimistic update
+            setUsers(users.map(u => u.id === userId ? { ...u, assigned_companies: newList } : u));
+
+            await authFetch(`/api/users/${userId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ assigned_companies: newList })
+            });
+
+        } catch (error) {
+            console.error(error);
+            fetchData(); // revert
+        }
     };
 
     const handleDelete = async (userId: string, email: string) => {
@@ -600,6 +624,31 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                         <span>Inspecciones de {u.display_name || u.email.split('@')[0]}</span>
                                                         <span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{userInspections.length}</span>
                                                     </h4>
+
+                                                    {u.role !== 'admin' && (
+                                                        <div className="mb-6 pt-2 border-t border-slate-700/50">
+                                                            <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Empresas Asignadas</h5>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {companies.map(c => {
+                                                                    const assigned = (u.assigned_companies || []).includes(c.companyId);
+                                                                    return (
+                                                                        <button
+                                                                            key={c.companyId}
+                                                                            onClick={(e) => { e.stopPropagation(); handleToggleUserCompany(u.id, c.companyId); }}
+                                                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                                                                                assigned 
+                                                                                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
+                                                                                : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700/50'
+                                                                            }`}
+                                                                        >
+                                                                            {assigned ? <CheckCircle className="w-3 h-3" /> : <Building className="w-3 h-3 opacity-50" />}
+                                                                            {c.name}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                     
                                                     {userInspections.length === 0 ? (
                                                         <p className="text-xs text-slate-600 italic">No ha realizado inspecciones aún.</p>

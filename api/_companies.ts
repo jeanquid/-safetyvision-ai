@@ -110,7 +110,29 @@ export async function deleteCompany(companyId: string): Promise<void> {
     logger.info('companies', 'Company archived', { companyId });
 }
 
-export async function getCompaniesWithStats(tenantId: string): Promise<CompanyStats[]> {
+export async function getCompaniesWithStats(tenantId: string, userCtx?: any): Promise<CompanyStats[]> {
+    let assignedFilter = '';
+    
+    if (userCtx && userCtx.role !== 'admin') {
+        // Fetch user from DB to get assigned_companies (it might not be in JWT)
+        const uRes = await db.query('SELECT assigned_companies FROM users WHERE id = $1', [userCtx.userId]);
+        const assignedCompanies = uRes.rows[0]?.assigned_companies || [];
+        
+        if (assignedCompanies.length === 0) {
+            return []; // No companies assigned
+        }
+        
+        // Ensure UUIDs only and build IN clause
+        const validUuids = assignedCompanies.filter((c: any) => typeof c === 'string');
+        const uuidList = validUuids.map((u: string) => `'${u}'`).join(',');
+        
+        if (validUuids.length > 0) {
+            assignedFilter = ` AND c.company_id IN (${uuidList}) `;
+        } else {
+             return [];
+        }
+    }
+
     const result = await db.query(`
         SELECT
             c.company_id,
@@ -125,7 +147,7 @@ export async function getCompaniesWithStats(tenantId: string): Promise<CompanySt
             MAX(i.created_at) AS last_inspection_date
         FROM companies c
         LEFT JOIN inspections i ON i.company_id = c.company_id
-        WHERE c.tenant_id = $1 AND c.status = 'active'
+        WHERE c.tenant_id = $1 AND c.status = 'active' ${assignedFilter}
         GROUP BY c.company_id, c.name
         ORDER BY c.name ASC
     `, [tenantId]);

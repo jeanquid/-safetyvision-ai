@@ -12,7 +12,7 @@ export const listUsersHandler = async (req: Request, res: Response) => {
         }
 
         const result = await db.query(
-            `SELECT id, email, role, display_name, full_name, license_number, job_title, created_at
+            `SELECT id, email, role, display_name, full_name, license_number, job_title, assigned_companies, created_at
              FROM users WHERE tenant_id = $1
              ORDER BY created_at DESC`,
             [user.tenantId]
@@ -100,6 +100,41 @@ export const deleteUserHandler = async (req: Request, res: Response) => {
         }
 
         await db.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+        res.json({ ok: true });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// PUT /api/users/:id — actualizar usuario (asignar empresas)
+export const updateUserHandler = async (req: Request, res: Response) => {
+    try {
+        const adminUser = (req as any).user;
+        if (adminUser.role !== 'admin') {
+            return res.status(403).json({ error: 'Admin only' });
+        }
+
+        const { assigned_companies } = req.body;
+        if (!Array.isArray(assigned_companies)) {
+            return res.status(400).json({ error: 'assigned_companies must be an array' });
+        }
+
+        const target = await db.query(
+            'SELECT tenant_id FROM users WHERE id = $1',
+            [req.params.id]
+        );
+        if (target.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (target.rows[0].tenant_id !== adminUser.tenantId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        await db.query(
+            'UPDATE users SET assigned_companies = $1 WHERE id = $2',
+            [JSON.stringify(assigned_companies), req.params.id]
+        );
+
         res.json({ ok: true });
     } catch (error: any) {
         res.status(500).json({ error: error.message });

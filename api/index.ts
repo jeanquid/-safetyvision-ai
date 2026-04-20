@@ -72,7 +72,8 @@ async function ensureTables() {
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS full_name TEXT,
             ADD COLUMN IF NOT EXISTS license_number TEXT,
-            ADD COLUMN IF NOT EXISTS job_title TEXT DEFAULT 'Inspector de Seguridad e Higiene';
+            ADD COLUMN IF NOT EXISTS job_title TEXT DEFAULT 'Inspector de Seguridad e Higiene',
+            ADD COLUMN IF NOT EXISTS assigned_companies JSONB DEFAULT '[]';
         `);
 
         // Table: photos (Evidence Storage)
