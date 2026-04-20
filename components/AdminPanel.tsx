@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
-    Users as UsersIcon, Plus, Trash2, Loader2, AlertCircle,
+    Users as UsersIcon, Plus, Trash2, Loader2, AlertCircle, UserCog,
     CheckCircle, Shield, Eye, UserPlus, X, Building, Building2, ChevronRight, ClipboardList, LayoutDashboard
 } from 'lucide-react';
 import { InspectionsList } from './InspectionsList';
@@ -663,7 +663,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                     
                                                     {/* FORMULARIO EDICION DE PERFIL */}
                                                     <div className="pt-1">
-                                                        <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-4 flex items-center gap-1.5"><UserEdit className="w-3.5 h-3.5" /> Información Básica</h5>
+                                                        <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-4 flex items-center gap-1.5"><UserCog className="w-3.5 h-3.5" /> Información Básica</h5>
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                 <div>
                                                                     <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Email * (no editable)</label>
