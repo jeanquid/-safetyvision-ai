@@ -40,6 +40,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
 
     // Tab state
     const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'inspections'>('users');
+    const [previousTab, setPreviousTab] = useState<'users' | 'companies' | 'inspections'>('users');
     const [preSelectInspectionId, setPreSelectInspectionId] = useState<string | null>(null);
     const [tenantPlants, setTenantPlants] = useState<{ name: string; sectors: string[] }[]>([]);
     const [plantsLoading, setPlantsLoading] = useState(true);
@@ -766,6 +767,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                                 
                                                                 return (
                                                                     <div key={ins.inspectionId} onClick={() => {
+                                                                        setPreviousTab(activeTab);
                                                                         setPreSelectInspectionId(ins.inspectionId);
                                                                         setActiveTab('inspections');
                                                                     }} className="flex items-center gap-3 p-2.5 bg-slate-900/80 border border-slate-800/80 rounded-lg text-xs cursor-pointer hover:bg-slate-800/80 transition-colors"
@@ -898,6 +900,28 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
 
                                     {isExpanded && (
                                     <>
+                                    {/* Usuarios asignados a esta empresa */}
+                                    {(() => {
+                                        const assignedUsers = users.filter(u => (u.assigned_companies || []).includes(c.companyId));
+                                        if (assignedUsers.length === 0) return null;
+                                        return (
+                                            <div className="border-t border-slate-800 pt-3 mb-3">
+                                                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2 flex items-center justify-between">
+                                                    <span>Usuarios Asignados</span>
+                                                    <span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{assignedUsers.length}</span>
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {assignedUsers.map(u => (
+                                                        <div key={u.id} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 border border-slate-800 rounded-lg text-[10px]">
+                                                            <UserCog className="w-3 h-3 text-emerald-400" />
+                                                            <span className="text-slate-300 font-medium">{u.display_name || u.email}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
                                     {/* Plantas y sectores de esta empresa (si los tiene) */}
                                     {c.plants && c.plants.length > 0 && (
                                         <div className="border-t border-slate-800 pt-3">
@@ -936,8 +960,12 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                     const ts = STATUS_STYLE[ins.task?.status] || STATUS_STYLE.pendiente;
 
                                                     return (
-                                                        <div key={ins.inspectionId}
-                                                            className="flex items-center gap-3 p-2.5 bg-slate-900/50 border border-slate-800 rounded-lg"
+                                                        <div key={ins.inspectionId} onClick={() => {
+                                                                setPreviousTab(activeTab);
+                                                                setPreSelectInspectionId(ins.inspectionId);
+                                                                setActiveTab('inspections');
+                                                            }}
+                                                            className="flex items-center gap-3 p-2.5 bg-slate-900/50 border border-slate-800 rounded-lg cursor-pointer hover:bg-slate-800/80 transition-colors"
                                                             style={{ borderLeftWidth: 3, borderLeftColor: maxLevel === 'alto' ? '#EF4444' : maxLevel === 'medio' ? '#F59E0B' : '#22C55E' }}>
                                                             {/* Fecha */}
                                                             <div className="w-10 text-center shrink-0">
@@ -1004,7 +1032,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                 <div className="pt-2">
                     <InspectionsList 
                         preSelectInspectionId={preSelectInspectionId}
-                        onBack={() => { setPreSelectInspectionId(null); setActiveTab('users'); }}
+                        onBack={() => { setPreSelectInspectionId(null); setActiveTab(previousTab); }}
                     />
                 </div>
             )}
