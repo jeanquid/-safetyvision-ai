@@ -64,6 +64,38 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
         setLoading(false);
     };
 
+    const handleExportCSV = () => {
+        if (!filtered || filtered.length === 0) return;
+
+        const headers = ["ID Corto", "Fecha", "Empresa", "Planta", "Sector", "Inspector", "Estado", "Total Riesgos", "Riesgos Altos", "Recomendacion IA"];
+        
+        const rows = filtered.map((ins: any) => {
+            const highRisks = (ins.risks || []).filter((r: any) => r.level === 'alto').length;
+            
+            return [
+                ins.inspectionId.substring(0, 8),
+                new Date(ins.createdAt).toLocaleDateString('es-AR'),
+                `"${ins.companyName || ''}"`,
+                `"${ins.plant || ''}"`,
+                `"${ins.sector || 'Sin especificar'}"`,
+                `"${ins.operator || ''}"`,
+                ins.task?.status || 'pendiente',
+                (ins.risks || []).length,
+                highRisks,
+                `"${(ins.task?.action || '').replace(/"/g, '""')}"`
+            ].join(',');
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + headers.join(',') + "\n" + rows.join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `historial_inspecciones_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const loadInspectionDetail = async (ins: any) => {
         setSelected(ins);
         setPhotoLoading(true);
@@ -285,15 +317,25 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
                 </button>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {filters.map(f => (
-                    <button key={f.key} onClick={() => setFilter(f.key)}
-                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold border transition-all ${filter === f.key
-                            ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
-                            : 'bg-slate-900/50 border-slate-800 text-slate-500'}`}>
-                        {f.label}
-                    </button>
-                ))}
+            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar justify-between">
+                <div className="flex gap-2">
+                    {filters.map(f => (
+                        <button key={f.key} onClick={() => setFilter(f.key)}
+                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold border transition-all ${filter === f.key
+                                ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                                : 'bg-slate-900/50 border-slate-800 text-slate-500'}`}>
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
+                
+                <button
+                    onClick={handleExportCSV}
+                    disabled={filtered.length === 0}
+                    className="shrink-0 whitespace-nowrap px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold border border-emerald-500 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+                >
+                    <FileDown className="w-3.5 h-3.5" /> Exportar a Excel
+                </button>
             </div>
 
             {loading ? (
