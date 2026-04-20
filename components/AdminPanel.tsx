@@ -28,6 +28,8 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
     const [users, setUsers] = useState<UserRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [editUserData, setEditUserData] = useState<any>({});
+    const [updatingProfile, setUpdatingProfile] = useState<string | null>(null);
     const [expandedUserInspections, setExpandedUserInspections] = useState<string | null>(null);
     const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
@@ -163,6 +165,34 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
             console.error(error);
             fetchData(); // revert
         }
+    };
+
+    const handleUpdateUserProfile = async (userId: string) => {
+        setUpdatingProfile(userId);
+        try {
+            const res = await authFetch(`/api/users/${userId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    displayName: editUserData.displayName,
+                    fullName: editUserData.fullName,
+                    licenseNumber: editUserData.licenseNumber,
+                    jobTitle: editUserData.jobTitle,
+                    password: editUserData.password
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                setSuccess('Perfil actualizado correctamente');
+                // clear password field so it doesn't linger
+                setEditUserData((prev: any) => ({ ...prev, password: '' }));
+                fetchData();
+            } else {
+                setError(data.error || 'Error al actualizar');
+            }
+        } catch (err: any) {
+            setError(err.message || 'Error de red');
+        }
+        setUpdatingProfile(null);
     };
 
     const handleDelete = async (userId: string, email: string) => {
@@ -550,8 +580,23 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                 return (
                                     <div key={u.id} className="space-y-1">
                                         <div
-                                            onClick={() => setExpandedUserInspections(isExpanded ? null : u.id)}
-                                            className="grid grid-cols-12 gap-3 items-center p-4 bg-slate-900/30 border border-slate-800 rounded-xl hover:bg-slate-800/40 transition-colors cursor-pointer"
+                                            onClick={() => {
+                                                if (isExpanded) {
+                                                    setExpandedUserInspections(null);
+                                                } else {
+                                                    setExpandedUserInspections(u.id);
+                                                    setEditUserData({
+                                                        displayName: u.display_name || '',
+                                                        fullName: u.full_name || '',
+                                                        licenseNumber: u.license_number || '',
+                                                        jobTitle: u.job_title || 'Inspector de Seguridad e Higiene',
+                                                        password: ''
+                                                    });
+                                                    setError('');
+                                                    setSuccess('');
+                                                }
+                                            }}
+                                            className={`grid grid-cols-12 gap-3 items-center p-4 bg-slate-900/30 border ${isExpanded ? 'border-slate-700 shadow-xl' : 'border-slate-800'} rounded-xl hover:bg-slate-800/40 transition-all cursor-pointer`}
                                         >
                                         {/* Avatar */}
                                         <div className="col-span-1">
@@ -614,15 +659,62 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                         {/* Expanded area */}
                                         {isExpanded && (
                                             <div className="pl-[3.25rem] pr-2 pb-3">
-                                                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 shadow-inner">
-                                                    <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-3 flex items-center justify-between">
-                                                        <span>Inspecciones de {u.display_name || u.email.split('@')[0]}</span>
-                                                        <span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{userInspections.length}</span>
-                                                    </h4>
+                                                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 shadow-inner space-y-6">
+                                                    
+                                                    {/* FORMULARIO EDICION DE PERFIL */}
+                                                    <div className="pt-1">
+                                                        <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-4 flex items-center gap-1.5"><UserEdit className="w-3.5 h-3.5" /> Información Básica</h5>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                <div>
+                                                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Email * (no editable)</label>
+                                                                    <input type="email" value={u.email} disabled className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-xl text-slate-400 text-sm cursor-not-allowed" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Nombre de Usuario (Display Name)</label>
+                                                                    <input type="text" value={editUserData.displayName || ''} onChange={e => setEditUserData({...editUserData, displayName: e.target.value})} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                                                                </div>
+                                                                <div className="md:col-span-2">
+                                                                    <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Nueva Contraseña (mín. 8 caracteres)</label>
+                                                                    <input type="password" value={editUserData.password || ''} onChange={e => setEditUserData({...editUserData, password: e.target.value})} placeholder="Dejar en blanco para no cambiarla" className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                                                                </div>
+                                                        </div>
+
+                                                        {/* FIRMA PARA EL PDF */}
+                                                        {u.role === 'inspector' && (
+                                                            <div className="mt-5 pt-5 border-t border-slate-700/50">
+                                                                <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-4 flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 text-emerald-400" /> Datos de Firma para Actas</h5>
+                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                    <div>
+                                                                        <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Nombre completo (para firma)</label>
+                                                                        <input type="text" value={editUserData.fullName || ''} onChange={e => setEditUserData({...editUserData, fullName: e.target.value})} placeholder="Ej: Ing. Juan García" className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Matrícula / Habilitación</label>
+                                                                        <input type="text" value={editUserData.licenseNumber || ''} onChange={e => setEditUserData({...editUserData, licenseNumber: e.target.value})} placeholder="Ej: Mat. 4521 — CPSI" className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                                                                    </div>
+                                                                    <div className="md:col-span-2">
+                                                                        <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2">Función / Sello</label>
+                                                                        <input type="text" value={editUserData.jobTitle || ''} onChange={e => setEditUserData({...editUserData, jobTitle: e.target.value})} placeholder="Inspector de Seguridad" className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                                                                    </div>
+                                                                 </div>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="mt-5 flex justify-end">
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleUpdateUserProfile(u.id); }}
+                                                                disabled={updatingProfile === u.id}
+                                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-blue-500/20"
+                                                            >
+                                                                {updatingProfile === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                                                                Guardar Perfil
+                                                            </button>
+                                                        </div>
+                                                    </div>
 
                                                     {u.role !== 'admin' && (
-                                                        <div className="mb-6 pt-2 border-t border-slate-700/50">
-                                                            <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Empresas Asignadas</h5>
+                                                        <div className="mb-6 pt-5 border-t border-slate-700/50">
+                                                            <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-3 flex items-center gap-1.5"><Building className="w-3.5 h-3.5" /> Empresas Asignadas</h5>
                                                             <div className="flex flex-wrap gap-2">
                                                                 {companies.map(c => {
                                                                     const assigned = (u.assigned_companies || []).includes(c.companyId);
@@ -645,7 +737,13 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                         </div>
                                                     )}
                                                     
-                                                    {userInspections.length === 0 ? (
+                                                    <div className="pt-2 border-t border-slate-700/50">
+                                                        <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-3 flex items-center justify-between">
+                                                            <span className="flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5" /> Inspecciones Relacionadas</span>
+                                                            <span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{userInspections.length}</span>
+                                                        </h5>
+                                                        
+                                                        {userInspections.length === 0 ? (
                                                         <p className="text-xs text-slate-600 italic">No ha realizado inspecciones aún.</p>
                                                     ) : (
                                                         <div className="space-y-2">
@@ -678,6 +776,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                             })}
                                                         </div>
                                                     )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}

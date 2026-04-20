@@ -106,7 +106,7 @@ export const deleteUserHandler = async (req: Request, res: Response) => {
     }
 };
 
-// PUT /api/users/:id — actualizar usuario (asignar empresas)
+// PUT /api/users/:id — actualizar usuario (asignar empresas y editar perfil)
 export const updateUserHandler = async (req: Request, res: Response) => {
     try {
         const adminUser = (req as any).user;
@@ -114,10 +114,7 @@ export const updateUserHandler = async (req: Request, res: Response) => {
             return res.status(403).json({ error: 'Admin only' });
         }
 
-        const { assigned_companies } = req.body;
-        if (!Array.isArray(assigned_companies)) {
-            return res.status(400).json({ error: 'assigned_companies must be an array' });
-        }
+        const { assigned_companies, displayName, fullName, licenseNumber, jobTitle, password } = req.body;
 
         const target = await db.query(
             'SELECT tenant_id FROM users WHERE id = $1',
@@ -130,10 +127,34 @@ export const updateUserHandler = async (req: Request, res: Response) => {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        await db.query(
-            'UPDATE users SET assigned_companies = $1 WHERE id = $2',
-            [JSON.stringify(assigned_companies), req.params.id]
-        );
+        let query = `
+            UPDATE users 
+            SET display_name = COALESCE($1, display_name),
+                full_name = $2,
+                license_number = $3,
+                job_title = $4
+        `;
+        const values: any[] = [displayName, fullName, licenseNumber, jobTitle];
+        let paramIdx = 5;
+
+        if (assigned_companies && Array.isArray(assigned_companies)) {
+            query += `, assigned_companies = $${paramIdx}`;
+            values.push(JSON.stringify(assigned_companies));
+            paramIdx++;
+        }
+
+        if (password) {
+            if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+            const passwordHash = await bcrypt.hash(password, 12);
+            query += `, password_hash = $${paramIdx}`;
+            values.push(passwordHash);
+            paramIdx++;
+        }
+
+        query += ` WHERE id = $${paramIdx}`;
+        values.push(req.params.id);
+
+        await db.query(query, values);
 
         res.json({ ok: true });
     } catch (error: any) {
