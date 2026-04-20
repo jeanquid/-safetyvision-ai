@@ -27,6 +27,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
     const [users, setUsers] = useState<UserRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [expandedUserInspections, setExpandedUserInspections] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [deletingCompany, setDeletingCompany] = useState<string | null>(null);
     const [deletingInspection, setDeletingInspection] = useState<string | null>(null);
@@ -524,12 +525,15 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                             {users.map(u => {
                                 const rs = ROLE_STYLE[u.role] || ROLE_STYLE.inspector;
                                 const isCurrentUser = u.id === user?.id;
+                                const isExpanded = expandedUserInspections === u.id;
+                                const userInspections = inspections.filter(ins => ins.operator === u.display_name || ins.operator === u.email);
 
                                 return (
-                                    <div
-                                        key={u.id}
-                                        className="grid grid-cols-12 gap-3 items-center p-4 bg-slate-900/30 border border-slate-800 rounded-xl hover:bg-slate-800/40 transition-colors"
-                                    >
+                                    <div key={u.id} className="space-y-1">
+                                        <div
+                                            onClick={() => setExpandedUserInspections(isExpanded ? null : u.id)}
+                                            className="grid grid-cols-12 gap-3 items-center p-4 bg-slate-900/30 border border-slate-800 rounded-xl hover:bg-slate-800/40 transition-colors cursor-pointer"
+                                        >
                                         {/* Avatar */}
                                         <div className="col-span-1">
                                             <div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs font-bold text-emerald-400">
@@ -574,7 +578,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                 </div>
                                             ) : (
                                                 <button
-                                                    onClick={() => handleDelete(u.id, u.email)}
+                                                    onClick={(e) => { e.stopPropagation(); handleDelete(u.id, u.email); }}
                                                     disabled={deleting === u.id}
                                                     className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                     title={`Eliminar ${u.email}`}
@@ -586,6 +590,52 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                 </button>
                                             )}
                                         </div>
+
+                                        {/* Expanded area */}
+                                        {isExpanded && (
+                                            <div className="pl-[3.25rem] pr-2 pb-3">
+                                                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 shadow-inner">
+                                                    <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-3 flex items-center justify-between">
+                                                        <span>Inspecciones de {u.display_name || u.email.split('@')[0]}</span>
+                                                        <span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{userInspections.length}</span>
+                                                    </h4>
+                                                    
+                                                    {userInspections.length === 0 ? (
+                                                        <p className="text-xs text-slate-600 italic">No ha realizado inspecciones aún.</p>
+                                                    ) : (
+                                                        <div className="space-y-2">
+                                                            {userInspections.map(ins => {
+                                                                const maxLevel = (ins.risks || []).reduce((h: string, r: any) => {
+                                                                    const o: Record<string, number> = { alto: 3, medio: 2, bajo: 1 };
+                                                                    return (o[r.level] || 0) > (o[h] || 0) ? r.level : h;
+                                                                }, 'bajo');
+                                                                const ts = STATUS_STYLE[ins.task?.status] || STATUS_STYLE.pendiente;
+                                                                
+                                                                return (
+                                                                    <div key={ins.inspectionId} className="flex items-center gap-3 p-2.5 bg-slate-900/80 border border-slate-800/80 rounded-lg text-xs"
+                                                                        style={{ borderLeftWidth: 3, borderLeftColor: maxLevel === 'alto' ? '#EF4444' : maxLevel === 'medio' ? '#F59E0B' : '#22C55E' }}>
+                                                                        <div className="text-slate-400 w-[4.5rem] shrink-0 font-medium">
+                                                                            {new Date(ins.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0 font-medium text-slate-300 truncate">
+                                                                            <span className="text-white">{ins.companyName}</span> <span className="text-slate-600 px-1">|</span> {ins.plant}
+                                                                        </div>
+                                                                        {maxLevel === 'alto' && (
+                                                                            <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
+                                                                                ALTO
+                                                                            </span>
+                                                                        )}
+                                                                        <div className="shrink-0 flex items-center justify-end w-20">
+                                                                            <span className={`text-[9px] font-bold ${ts.color}`}>{ts.label}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
