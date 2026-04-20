@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft, FileDown, Camera, Building2, ClipboardList, Trash2 } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft, FileDown, Camera, Building2, ClipboardList, Trash2, HardHat, Factory, Construction, PlayCircle, Lightbulb } from 'lucide-react';
 
-const LEVEL_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-    alto: { color: 'text-red-400', bg: 'bg-red-500/10', label: '🔴 ALTO' },
-    medio: { color: 'text-amber-400', bg: 'bg-amber-500/10', label: '🟡 MEDIO' },
-    bajo: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', label: '🟢 BAJO' },
+const LEVEL_STYLE: Record<string, { color: string; bg: string; border: string; label: string }> = {
+    alto: { color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20', label: 'ALTO' },
+    medio: { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', label: 'MEDIO' },
+    bajo: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', label: 'BAJO' },
 };
 
-const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-    pendiente: { color: 'text-red-400', bg: 'bg-red-500/10', label: 'Pendiente' },
-    en_progreso: { color: 'text-amber-400', bg: 'bg-amber-500/10', label: 'En progreso' },
-    resuelto: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', label: 'Resuelto' },
+const STATUS_STYLE: Record<string, { color: string; bg: string; border: string; label: string; Icon: React.ComponentType<{ className?: string }> }> = {
+    pendiente: { color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20', label: 'Pendiente', Icon: Clock },
+    en_progreso: { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', label: 'En progreso', Icon: PlayCircle },
+    resuelto: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', label: 'Resuelto', Icon: CheckCircle },
+};
+
+const CategoryIcon: React.FC<{ category: string; className?: string }> = ({ category, className = 'w-5 h-5' }) => {
+    if (category === 'epp') return <HardHat className={className} />;
+    if (category === 'condiciones') return <Factory className={className} />;
+    return <Construction className={className} />;
 };
 
 interface Props {
@@ -140,11 +146,18 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
     const filtered = filter === 'all' ? inspections
         : inspections.filter(i => i.task?.status === filter);
 
+    const counts = {
+        all: inspections.length,
+        pendiente: inspections.filter(i => i.task?.status === 'pendiente').length,
+        en_progreso: inspections.filter(i => i.task?.status === 'en_progreso').length,
+        resuelto: inspections.filter(i => i.task?.status === 'resuelto').length,
+    };
+
     const filters = [
-        { key: 'all', label: 'Todas' },
-        { key: 'pendiente', label: 'Pendientes' },
-        { key: 'en_progreso', label: 'En progreso' },
-        { key: 'resuelto', label: 'Resueltas' },
+        { key: 'all', label: 'Todas', count: counts.all },
+        { key: 'pendiente', label: 'Pendientes', count: counts.pendiente },
+        { key: 'en_progreso', label: 'En progreso', count: counts.en_progreso },
+        { key: 'resuelto', label: 'Resueltas', count: counts.resuelto },
     ];
 
     if (selected) {
@@ -197,8 +210,10 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
                             </div>
                         </div>
                         <div className="flex flex-col gap-2 items-end">
-                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${ls.bg} ${ls.color}`}>{ls.label}</span>
-                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${ts.bg} ${ts.color}`}>{ts.label}</span>
+                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${ls.bg} ${ls.border} ${ls.color}`}>{ls.label}</span>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full border ${ts.bg} ${ts.border} ${ts.color}`}>
+                                <ts.Icon className="w-3 h-3" /> {ts.label}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -241,12 +256,19 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
                         const rl = LEVEL_STYLE[r.level] || LEVEL_STYLE.medio;
                         return (
                             <div key={i} className="flex items-center gap-3 p-4 bg-slate-900/30 border border-slate-800 rounded-xl">
-                                <span className="text-2xl">{r.category === 'epp' ? '🦺' : r.category === 'condiciones' ? '🏭' : '🚧'}</span>
+                                <div className="w-10 h-10 rounded-lg bg-slate-800/60 border border-slate-700 flex items-center justify-center shrink-0 text-slate-300">
+                                    <CategoryIcon category={r.category} />
+                                </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="text-sm text-white font-bold">{r.description}</div>
-                                    {r.recommendation && <div className="text-xs text-blue-400 mt-1">💡 {r.recommendation}</div>}
+                                    {r.recommendation && (
+                                        <div className="text-xs text-blue-400 mt-1 flex items-start gap-1.5">
+                                            <Lightbulb className="w-3 h-3 mt-0.5 shrink-0" />
+                                            <span>{r.recommendation}</span>
+                                        </div>
+                                    )}
                                 </div>
-                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-lg border ${rl.bg} ${rl.color}`}>{rl.label}</span>
+                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-lg border ${rl.bg} ${rl.border} ${rl.color}`}>{rl.label}</span>
                             </div>
                         );
                     })}
@@ -263,9 +285,17 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
                         
                         {ins.task?.status !== 'resuelto' && (
                             <div className="flex gap-2">
+                                {ins.task?.status === 'pendiente' && (
+                                    <button onClick={() => updateTask(ins.inspectionId, 'en_progreso')} disabled={updating}
+                                        className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-amber-600/10 flex items-center justify-center gap-2">
+                                        <PlayCircle className="w-4 h-4" />
+                                        {updating ? 'ACTUALIZANDO...' : 'MARCAR EN PROGRESO'}
+                                    </button>
+                                )}
                                 <button onClick={() => updateTask(ins.inspectionId, 'resuelto')} disabled={updating}
-                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-emerald-600/10">
-                                    {updating ? 'MARCANDO...' : '✅ FINALIZAR TAREA'}
+                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-emerald-600/10 flex items-center justify-center gap-2">
+                                    <CheckCircle className="w-4 h-4" />
+                                    {updating ? 'MARCANDO...' : 'FINALIZAR TAREA'}
                                 </button>
                             </div>
                         )}
@@ -321,10 +351,13 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
                 <div className="flex gap-2">
                     {filters.map(f => (
                         <button key={f.key} onClick={() => setFilter(f.key)}
-                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold border transition-all ${filter === f.key
+                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold border transition-all inline-flex items-center gap-2 ${filter === f.key
                                 ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
-                                : 'bg-slate-900/50 border-slate-800 text-slate-500'}`}>
+                                : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:text-slate-300'}`}>
                             {f.label}
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${filter === f.key ? 'bg-blue-500/20' : 'bg-slate-800/80'}`}>
+                                {f.count}
+                            </span>
                         </button>
                     ))}
                 </div>
@@ -362,13 +395,16 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
                                     #{ins.inspectionId?.substring(0, 4)}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                                         <span className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors truncate">{ins.companyName}</span>
                                         {(ins.risks || []).some((r: any) => r.level === 'alto') && (
-                                            <span className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
-                                                ⚠ ALTO
+                                            <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
+                                                <AlertTriangle className="w-2.5 h-2.5" /> ALTO
                                             </span>
                                         )}
+                                        <span className={`shrink-0 inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border ${ts.bg} ${ts.border} ${ts.color}`}>
+                                            <ts.Icon className="w-2.5 h-2.5" /> {ts.label}
+                                        </span>
                                     </div>
                                     <div className="text-[10px] text-slate-500 flex items-center gap-1.5 uppercase font-bold tracking-tight">
                                         {ins.plant}
