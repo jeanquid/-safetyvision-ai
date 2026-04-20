@@ -16,6 +16,7 @@ async function ensureTables() {
         // Pero también debemos verificar si están las columnas nuevas de users y otras tablas
         try {
             await db.query('SELECT full_name FROM users LIMIT 0');
+            await db.query('SELECT assigned_companies FROM users LIMIT 0');
             await db.query('SELECT 1 FROM photos LIMIT 0');
             await db.query('SELECT 1 FROM ai_feedback LIMIT 0');
         } catch {
