@@ -46,15 +46,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ companyId, companyName }) 
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        {companyId ? <Building2 className="w-5 h-5 text-blue-400" /> : <BarChart3 className="w-5 h-5 text-blue-400" />}
-                        Dashboard {companyName ? `— ${companyName}` : 'Global'}
-                    </h2>
-                    <p className="text-slate-500 text-sm mt-0.5">Métricas detectadas por IA</p>
-                </div>
-                <button onClick={fetchStats} className="text-slate-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-slate-800">
+            <div className="flex justify-end -mt-2 mb-2">
+                <button onClick={fetchStats} className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-slate-800" title="Actualizar métricas">
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 </button>
             </div>
