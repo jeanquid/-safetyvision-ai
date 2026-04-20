@@ -89,28 +89,6 @@ export const CompaniesView: React.FC<Props> = ({ onSelectCompany, onNewCompany }
                 </div>
             </div>
 
-            {/* KPIs globales */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                    { label: 'Empresas', value: globalStats.totalCompanies, color: 'text-blue-400' },
-                    { label: 'Inspecciones', value: globalStats.totalInspections, color: 'text-amber-400' },
-                    { label: 'Riesgos altos', value: globalStats.totalHighRisks, color: 'text-red-400' },
-                    { label: 'Pendientes', value: globalStats.totalPending, color: 'text-orange-400' },
-                ].map((kpi, i) => (
-                    <div key={i} className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
-                        <div className={`text-2xl font-bold ${kpi.color} font-mono`}>{kpi.value}</div>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-1">{kpi.label}</div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Búsqueda */}
-            <div className="relative">
-                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Buscar empresa..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900/50 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500" />
-            </div>
 
             {/* Company cards */}
             {loading && !companies.length ? (
