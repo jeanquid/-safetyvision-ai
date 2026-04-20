@@ -16,9 +16,11 @@ const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }>
 
 interface Props {
     companyId?: string;
+    preSelectInspectionId?: string | null;
+    onBack?: () => void;
 }
 
-export const InspectionsList: React.FC<Props> = ({ companyId }) => {
+export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectionId, onBack }) => {
     const { authFetch, user } = useAuth();
     const [inspections, setInspections] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -34,12 +36,42 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
             const url = companyId ? `/api/inspections/list?companyId=${companyId}` : '/api/inspections/list';
             const res = await authFetch(url);
             const data = await res.json();
-            if (data.ok) setInspections(data.inspections || []);
+            if (data.ok) {
+                const list = data.inspections || [];
+                setInspections(list);
+                if (preSelectInspectionId) {
+                    const found = list.find((i: any) => i.inspectionId === preSelectInspectionId);
+                    if (found) loadInspectionDetail(found);
+                }
+            }
         } catch {}
         setLoading(false);
     };
 
-    useEffect(() => { fetchList(); }, [companyId]);
+    const loadInspectionDetail = async (ins: any) => {
+        setSelected(ins);
+        setPhotoLoading(true);
+        try {
+            const res = await authFetch(`/api/inspections/${ins.inspectionId}`);
+            const data = await res.json();
+            if (data.ok && data.inspection) {
+                setSelected(data.inspection);
+                if (data.inspection.resolvedPhotoUrl) {
+                    try {
+                        const pr = await authFetch(data.inspection.resolvedPhotoUrl);
+                        if (pr.ok) {
+                            const blob = await pr.blob();
+                            if (photoUrl) URL.revokeObjectURL(photoUrl);
+                            setPhotoUrl(URL.createObjectURL(blob));
+                        }
+                    } catch {}
+                }
+            }
+        } catch {}
+        setPhotoLoading(false);
+    };
+
+    useEffect(() => { fetchList(); }, [companyId, preSelectInspectionId]);
 
     const updateTask = async (id: string, status: string) => {
         setUpdating(true);
@@ -84,8 +116,9 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
                         URL.revokeObjectURL(photoUrl);
                         setPhotoUrl(null);
                     }
+                    if (onBack) onBack();
                 }} className="flex items-center gap-1 text-blue-400 text-sm font-semibold hover:text-blue-300">
-                    <ArrowLeft className="w-4 h-4" /> Volver al listado
+                    <ArrowLeft className="w-4 h-4" /> {onBack ? 'Volver al panel' : 'Volver al listado'}
                 </button>
 
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5">
@@ -264,43 +297,7 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
                         const ts = STATUS_STYLE[ins.task?.status] || STATUS_STYLE.pendiente;
 
                         return (
-                            <div key={ins.inspectionId} onClick={async () => {
-                                // Limpiar foto anterior
-                                if (photoUrl) {
-                                    URL.revokeObjectURL(photoUrl);
-                                    setPhotoUrl(null);
-                                }
-                                setSelected(ins);
-                                setPhotoLoading(true);
-                                try {
-                                    const res = await authFetch(`/api/inspections/${ins.inspectionId}`);
-                                    const data = await res.json();
-                                    if (data.ok && data.inspection) {
-                                        setSelected(data.inspection);
-                                        // Cargar foto si existe
-                                        if (data.inspection.resolvedPhotoUrl) {
-                                            try {
-                                                const pr = await authFetch(data.inspection.resolvedPhotoUrl);
-                                                if (pr.ok) {
-                                                    const blob = await pr.blob();
-                                                    if (blob.size > 0) {
-                                                        setPhotoUrl(URL.createObjectURL(blob));
-                                                    } else {
-                                                        console.warn('Photo blob is empty');
-                                                    }
-                                                } else {
-                                                    console.warn('Photo fetch failed:', pr.status);
-                                                }
-                                            } catch (photoErr) {
-                                                console.error('Photo load error:', photoErr);
-                                            }
-                                        }
-                                    }
-                                } catch (err) {
-                                    console.error('Inspection load error:', err);
-                                }
-                                setPhotoLoading(false);
-                            }}
+                            <div key={ins.inspectionId} onClick={() => loadInspectionDetail(ins)}
                                 className="flex items-center gap-4 p-4 bg-slate-900/30 border border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-800/40 transition-all group"
                                 style={{ borderLeftWidth: 4, borderLeftColor: maxLevel === 'alto' ? '#EF4444' : maxLevel === 'medio' ? '#F59E0B' : '#22C55E' }}>
                                 <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 border border-slate-800 font-mono text-[10px] text-slate-500">

@@ -40,6 +40,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
 
     // Tab state
     const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'inspections'>('users');
+    const [preSelectInspectionId, setPreSelectInspectionId] = useState<string | null>(null);
     const [tenantPlants, setTenantPlants] = useState<{ name: string; sectors: string[] }[]>([]);
     const [plantsLoading, setPlantsLoading] = useState(true);
     const [plantsSaving, setPlantsSaving] = useState(false);
@@ -764,7 +765,10 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                                 const ts = STATUS_STYLE[ins.task?.status] || STATUS_STYLE.pendiente;
                                                                 
                                                                 return (
-                                                                    <div key={ins.inspectionId} className="flex items-center gap-3 p-2.5 bg-slate-900/80 border border-slate-800/80 rounded-lg text-xs"
+                                                                    <div key={ins.inspectionId} onClick={() => {
+                                                                        setPreSelectInspectionId(ins.inspectionId);
+                                                                        setActiveTab('inspections');
+                                                                    }} className="flex items-center gap-3 p-2.5 bg-slate-900/80 border border-slate-800/80 rounded-lg text-xs cursor-pointer hover:bg-slate-800/80 transition-colors"
                                                                         style={{ borderLeftWidth: 3, borderLeftColor: maxLevel === 'alto' ? '#EF4444' : maxLevel === 'medio' ? '#F59E0B' : '#22C55E' }}>
                                                                         <div className="text-slate-400 w-[4.5rem] shrink-0 font-medium">
                                                                             {new Date(ins.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
@@ -998,7 +1002,10 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
 
             {activeTab === 'inspections' && (
                 <div className="pt-2">
-                    <InspectionsList />
+                    <InspectionsList 
+                        preSelectInspectionId={preSelectInspectionId}
+                        onBack={() => { setPreSelectInspectionId(null); setActiveTab('users'); }}
+                    />
                 </div>
             )}
         </div>
