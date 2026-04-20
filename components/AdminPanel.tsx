@@ -590,6 +590,7 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                                 </button>
                                             )}
                                         </div>
+                                        </div>
 
                                         {/* Expanded area */}
                                         {isExpanded && (
