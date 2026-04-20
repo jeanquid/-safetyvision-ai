@@ -245,7 +245,6 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
         return (
             <div className="max-w-xl mx-auto space-y-6">
                 <div className="text-center">
-                    <div className="text-5xl mb-2">📸</div>
                     <h2 className="text-xl font-bold text-white">Nueva Inspección</h2>
                     <p className="text-slate-500 text-sm mt-1">Realizar relevamiento de seguridad</p>
                 </div>
