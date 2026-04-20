@@ -26,6 +26,8 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany }) => {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [deleting, setDeleting] = useState<string | null>(null);
+    const [deletingCompany, setDeletingCompany] = useState<string | null>(null);
+    const [deletingInspection, setDeletingInspection] = useState<string | null>(null);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
@@ -148,6 +150,42 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany }) => {
             setError(err.message);
         }
         setDeleting(null);
+    };
+
+    const handleDeleteCompany = async (e: React.MouseEvent, companyId: string, name: string) => {
+        e.stopPropagation();
+        if (!window.confirm(`¿Archivar la empresa "${name}"?`)) return;
+        setDeletingCompany(companyId);
+        try {
+            const res = await authFetch(`/api/companies/${companyId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.ok) {
+                setCompanies(prev => prev.filter(c => c.companyId !== companyId));
+            } else {
+                setError(data.error || 'Error al eliminar empresa');
+            }
+        } catch {
+            setError('Error de red al eliminar empresa');
+        }
+        setDeletingCompany(null);
+    };
+
+    const handleDeleteInspection = async (e: React.MouseEvent, insId: string) => {
+        e.stopPropagation();
+        if (!window.confirm('¿Eliminar esta inspección de forma permanente?')) return;
+        setDeletingInspection(insId);
+        try {
+            const res = await authFetch(`/api/inspections/${insId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.ok) {
+                setInspections(prev => prev.filter(ins => ins.inspectionId !== insId));
+            } else {
+                setError(data.error || 'Error al eliminar inspección');
+            }
+        } catch {
+            setError('Error de red al eliminar inspección');
+        }
+        setDeletingInspection(null);
     };
 
     const handleAddPlant = () => {
@@ -592,6 +630,16 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany }) => {
                                                 </div>
                                             </div>
                                         </div>
+                                        <button
+                                            onClick={(e) => handleDeleteCompany(e, c.companyId, c.name)}
+                                            disabled={deletingCompany === c.companyId}
+                                            className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+                                            title="Archivar empresa"
+                                        >
+                                            {deletingCompany === c.companyId
+                                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                : <Trash2 className="w-4 h-4" />}
+                                        </button>
                                     </div>
 
                                     {/* Stats */}
@@ -682,11 +730,21 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany }) => {
                                                                 </div>
                                                             </div>
 
-                                                            {/* Estado */}
-                                                            <div className="shrink-0">
+                                                            {/* Estado y Acciones */}
+                                                            <div className="shrink-0 flex items-center gap-3">
                                                                 <span className={`text-[9px] font-bold ${ts.color}`}>
                                                                     {ts.label}
                                                                 </span>
+                                                                <button
+                                                                    onClick={(e) => handleDeleteInspection(e, ins.inspectionId)}
+                                                                    disabled={deletingInspection === ins.inspectionId}
+                                                                    className="p-1 text-slate-600 hover:text-red-400 rounded-md transition-colors disabled:opacity-50"
+                                                                    title="Eliminar inspección"
+                                                                >
+                                                                    {deletingInspection === ins.inspectionId
+                                                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                        : <Trash2 className="w-3.5 h-3.5" />}
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     );
