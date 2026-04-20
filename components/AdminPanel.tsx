@@ -151,6 +151,15 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
 
             const existing = u.assigned_companies || [];
             const isAssigned = existing.includes(companyId);
+
+            const c = companies.find(c => c.companyId === companyId);
+            const companyName = c ? c.name : 'esta empresa';
+            const actionText = isAssigned ? 'QUITAR' : 'ASIGNAR';
+
+            if (!window.confirm(`¿Seguro que deseas ${actionText} la empresa "${companyName}" a ${u.display_name || u.email}?`)) {
+                return;
+            }
+
             const newList = isAssigned ? existing.filter(id => id !== companyId) : [...existing, companyId];
 
             // Optimistic update
