@@ -571,7 +571,10 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany }) => {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {companies.map((c: any) => (
+                            {companies.map((c: any) => {
+                                const companyInspections = inspections.filter(ins => ins.companyId === c.companyId);
+                                
+                                return (
                                 <div key={c.companyId}
                                     className="bg-slate-900/30 border border-slate-800 rounded-xl p-5 hover:bg-slate-800/30 transition-colors">
                                     {/* Header de empresa */}
@@ -632,84 +635,72 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany }) => {
                                             </div>
                                         </div>
                                     )}
+
+                                    {/* Inspecciones de esta empresa */}
+                                    {companyInspections.length > 0 && (
+                                        <div className="border-t border-slate-800 pt-4 mt-4">
+                                            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-3 flex items-center justify-between">
+                                                <span>Últimas Inspecciones</span>
+                                                <span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{companyInspections.length}</span>
+                                            </p>
+                                            <div className="space-y-2">
+                                                {companyInspections.slice(0, 5).map(ins => {
+                                                    const maxLevel = (ins.risks || []).reduce((h: string, r: any) => {
+                                                        const o: Record<string, number> = { alto: 3, medio: 2, bajo: 1 };
+                                                        return (o[r.level] || 0) > (o[h] || 0) ? r.level : h;
+                                                    }, 'bajo');
+                                                    const ts = STATUS_STYLE[ins.task?.status] || STATUS_STYLE.pendiente;
+
+                                                    return (
+                                                        <div key={ins.inspectionId}
+                                                            className="flex items-center gap-3 p-2.5 bg-slate-900/50 border border-slate-800 rounded-lg"
+                                                            style={{ borderLeftWidth: 3, borderLeftColor: maxLevel === 'alto' ? '#EF4444' : maxLevel === 'medio' ? '#F59E0B' : '#22C55E' }}>
+                                                            {/* Fecha */}
+                                                            <div className="w-10 text-center shrink-0">
+                                                                <div className="text-xs font-bold text-slate-300">
+                                                                    {new Date(ins.createdAt).toLocaleDateString('es-AR', { day: '2-digit' })}
+                                                                </div>
+                                                                <div className="text-[8px] text-slate-600 uppercase">
+                                                                    {new Date(ins.createdAt).toLocaleDateString('es-AR', { month: 'short' })}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Info */}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[11px] font-bold text-white truncate">
+                                                                        {ins.plant}
+                                                                    </span>
+                                                                    {maxLevel === 'alto' && (
+                                                                        <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
+                                                                            ALTO
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-[9px] text-slate-500 truncate mt-0.5">
+                                                                    {ins.operator} · {(ins.risks || []).length} riesgo{(ins.risks || []).length !== 1 ? 's' : ''}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Estado */}
+                                                            <div className="shrink-0">
+                                                                <span className={`text-[9px] font-bold ${ts.color}`}>
+                                                                    {ts.label}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
 
-                    {/* ── Inspecciones recientes ── */}
-                    <div className="border-t border-slate-800 pt-6 mt-6">
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">
-                            Últimas inspecciones ({inspections.length})
-                        </h3>
 
-                        {inspectionsLoading ? (
-                            <div className="flex items-center justify-center h-20">
-                                <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                            </div>
-                        ) : inspections.length === 0 ? (
-                            <div className="text-center py-8 bg-slate-900/20 border border-dashed border-slate-800 rounded-xl">
-                                <p className="text-slate-600 text-sm">No hay inspecciones realizadas</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {inspections.slice(0, 15).map((ins: any) => {
-                                    const maxLevel = (ins.risks || []).reduce((h: string, r: any) => {
-                                        const o: Record<string, number> = { alto: 3, medio: 2, bajo: 1 };
-                                        return (o[r.level] || 0) > (o[h] || 0) ? r.level : h;
-                                    }, 'bajo');
-                                    const ls = LEVEL_STYLE[maxLevel] || LEVEL_STYLE.medio;
-                                    const ts = STATUS_STYLE[ins.task?.status] || STATUS_STYLE.pendiente;
-
-                                    return (
-                                        <div key={ins.inspectionId}
-                                            className="flex items-center gap-3 p-3 bg-slate-900/30 border border-slate-800 rounded-xl"
-                                            style={{ borderLeftWidth: 3, borderLeftColor: maxLevel === 'alto' ? '#EF4444' : maxLevel === 'medio' ? '#F59E0B' : '#22C55E' }}>
-                                            {/* Fecha */}
-                                            <div className="w-12 text-center shrink-0">
-                                                <div className="text-xs font-bold text-slate-300">
-                                                    {new Date(ins.createdAt).toLocaleDateString('es-AR', { day: '2-digit' })}
-                                                </div>
-                                                <div className="text-[9px] text-slate-600 uppercase">
-                                                    {new Date(ins.createdAt).toLocaleDateString('es-AR', { month: 'short' })}
-                                                </div>
-                                            </div>
-
-                                            {/* Info */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-0.5">
-                                                    <span className="text-xs font-bold text-white truncate">
-                                                        {ins.companyName || '-'}
-                                                    </span>
-                                                    {maxLevel === 'alto' && (
-                                                        <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
-                                                            ALTO
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="text-[10px] text-slate-500 truncate">
-                                                    {ins.plant} · {ins.operator} · {(ins.risks || []).length} riesgo{(ins.risks || []).length !== 1 ? 's' : ''}
-                                                </div>
-                                            </div>
-
-                                            {/* Estado */}
-                                            <div className="shrink-0">
-                                                <span className={`text-[9px] font-bold ${ts.color}`}>
-                                                    {ts.label}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-
-                                {inspections.length > 15 && (
-                                    <p className="text-center text-[10px] text-slate-600 pt-2">
-                                        Mostrando 15 de {inspections.length} inspecciones
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                    </div>
                 </div>
             )}
         </div>
