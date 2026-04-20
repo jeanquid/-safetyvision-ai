@@ -298,8 +298,9 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
 
                 <div>
                     <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Operador / Inspector</label>
-                    <input value={operator} onChange={e => setOperator(e.target.value)} placeholder="Nombre"
-                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500" />
+                    <div className="w-full px-3 py-2.5 bg-slate-800/50 border border-slate-700 rounded-xl text-white text-sm text-slate-300">
+                        {operator}
+                    </div>
                 </div>
 
                 <div>
