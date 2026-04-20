@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { BarChart3, AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown, Loader2, RefreshCw, Building2 } from 'lucide-react';
+import { InspectionsList } from './InspectionsList';
 
 const RISK_COLORS: Record<string, string> = { alto: '#EF4444', medio: '#F59E0B', bajo: '#22C55E' };
 const CAT_META: Record<string, { label: string; icon: string; color: string }> = {
@@ -124,6 +125,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ companyId, companyName }) 
                     )}
                 </div>
             </div>
+            
+            {/* Inspecciones directamente en el dashboard si hay una empresa seleccionada */}
+            {companyId && (
+                <div className="mt-10 border-t border-slate-800/50 pt-8">
+                    <InspectionsList companyId={companyId} />
+                </div>
+            )}
         </div>
     );
 };
