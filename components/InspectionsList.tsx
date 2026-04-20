@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft, FileDown, Camera, Building2, ClipboardList } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Clock, ChevronRight, RefreshCw, ArrowLeft, FileDown, Camera, Building2, ClipboardList, Trash2 } from 'lucide-react';
 
 const LEVEL_STYLE: Record<string, { color: string; bg: string; label: string }> = {
     alto: { color: 'text-red-400', bg: 'bg-red-500/10', label: '🔴 ALTO' },
@@ -19,7 +19,7 @@ interface Props {
 }
 
 export const InspectionsList: React.FC<Props> = ({ companyId }) => {
-    const { authFetch } = useAuth();
+    const { authFetch, user } = useAuth();
     const [inspections, setInspections] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
@@ -199,6 +199,28 @@ export const InspectionsList: React.FC<Props> = ({ companyId }) => {
                 }} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs border border-slate-700 transition-all flex items-center justify-center gap-2">
                     <FileDown className="w-4 h-4" /> Generar Acta PDF
                 </button>
+
+                {user?.role === 'admin' && (
+                    <button onClick={async () => {
+                        if (!window.confirm('¿Eliminar esta inspección de forma permanente?')) return;
+                        setUpdating(true);
+                        try {
+                            const res = await authFetch(`/api/inspections/${ins.inspectionId}`, { method: 'DELETE' });
+                            if (res.ok) {
+                                setSelected(null);
+                                fetchList();
+                            } else {
+                                alert('Error al eliminar');
+                            }
+                        } catch {
+                            alert('Error de red al eliminar');
+                        }
+                        setUpdating(false);
+                    }} disabled={updating}
+                    className="w-full py-3 bg-red-900/10 hover:bg-red-900/30 text-red-400 font-bold rounded-xl text-xs border border-red-900/30 transition-all flex items-center justify-center gap-2 mt-3">
+                        <Trash2 className="w-4 h-4" /> Eliminar Inspección
+                    </button>
+                )}
             </div>
         );
     }

@@ -4,6 +4,7 @@ import {
     Users as UsersIcon, Plus, Trash2, Loader2, AlertCircle,
     CheckCircle, Shield, Eye, UserPlus, X, Building, Building2, ChevronRight, ClipboardList, LayoutDashboard
 } from 'lucide-react';
+import { InspectionsList } from './InspectionsList';
 
 interface UserRecord {
     id: string;
@@ -787,97 +788,8 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
             )}
 
             {activeTab === 'inspections' && (
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
-                            Registro Global de Inspecciones ({inspections.length})
-                        </h3>
-                    </div>
-
-                    {inspectionsLoading ? (
-                        <div className="flex items-center justify-center h-40">
-                            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-                        </div>
-                    ) : inspections.length === 0 ? (
-                        <div className="text-center py-12 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
-                            <ClipboardList className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                            <p className="text-slate-500 text-sm font-medium">No hay inspecciones registradas</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {/* Header de tabla (solo visual) */}
-                            <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-slate-900/50 rounded-lg text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                <div className="col-span-2">Fecha</div>
-                                <div className="col-span-3">Empresa</div>
-                                <div className="col-span-3">Detalles</div>
-                                <div className="col-span-2">Estado</div>
-                                <div className="col-span-2 text-right">Acciones</div>
-                            </div>
-
-                            {/* Rows */}
-                            {inspections.map(ins => {
-                                const maxLevel = (ins.risks || []).reduce((h: string, r: any) => {
-                                    const o: Record<string, number> = { alto: 3, medio: 2, bajo: 1 };
-                                    return (o[r.level] || 0) > (o[h] || 0) ? r.level : h;
-                                }, 'bajo');
-                                const ts = STATUS_STYLE[ins.task?.status] || STATUS_STYLE.pendiente;
-
-                                return (
-                                    <div key={ins.inspectionId}
-                                        className="grid grid-cols-12 gap-3 items-center p-4 bg-slate-900/30 border border-slate-800 rounded-xl hover:bg-slate-800/40 transition-colors"
-                                        style={{ borderLeftWidth: 3, borderLeftColor: maxLevel === 'alto' ? '#EF4444' : maxLevel === 'medio' ? '#F59E0B' : '#22C55E' }}>
-                                        
-                                        {/* Fecha */}
-                                        <div className="col-span-2 min-w-0">
-                                            <div className="text-xs font-bold text-slate-300">
-                                                {new Date(ins.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                            </div>
-                                        </div>
-
-                                        {/* Empresa */}
-                                        <div className="col-span-3 min-w-0">
-                                            <div className="font-semibold text-white text-sm truncate">
-                                                {ins.companyName || '-'}
-                                            </div>
-                                            {maxLevel === 'alto' && (
-                                                <span className="inline-block mt-1 text-[8px] font-black px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
-                                                    RIESGO ALTO
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Detalles */}
-                                        <div className="col-span-3 min-w-0">
-                                            <div className="text-[11px] text-slate-300 truncate font-medium">{ins.plant}</div>
-                                            <div className="text-[10px] text-slate-500 truncate mt-0.5">Autor: {ins.operator}</div>
-                                            <div className="text-[10px] text-slate-500 truncate">{(ins.risks || []).length} riesgos detectados</div>
-                                        </div>
-
-                                        {/* Estado */}
-                                        <div className="col-span-2">
-                                            <span className={`text-[9px] font-bold px-2 py-1 rounded bg-slate-900/50 ${ts.color}`}>
-                                                {ts.label}
-                                            </span>
-                                        </div>
-
-                                        {/* Acciones */}
-                                        <div className="col-span-2 flex items-center justify-end">
-                                            <button
-                                                onClick={(e) => handleDeleteInspection(e, ins.inspectionId)}
-                                                disabled={deletingInspection === ins.inspectionId}
-                                                className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                                                title="Eliminar inspección permanentemente"
-                                            >
-                                                {deletingInspection === ins.inspectionId
-                                                    ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                    : <Trash2 className="w-4 h-4" />}
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
+                <div className="pt-2">
+                    <InspectionsList />
                 </div>
             )}
         </div>

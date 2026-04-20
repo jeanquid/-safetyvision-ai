@@ -16,7 +16,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
     const baseNavItems = [
         { key: 'companies', icon: Building2, label: 'Mis Empresas', color: 'text-blue-400' },
         ...(user?.role !== 'admin' ? [{ key: 'new', icon: Camera, label: 'Nueva Inspección', color: 'text-emerald-400', requiresCompany: true }] : []),
-        { key: 'inspections', icon: ClipboardList, label: 'Inspecciones', color: 'text-amber-400', requiresCompany: true },
+        ...(user?.role !== 'admin' ? [{ key: 'inspections', icon: ClipboardList, label: 'Inspecciones', color: 'text-amber-400', requiresCompany: true }] : []),
     ];
 
     const navItems = user?.role === 'admin'
