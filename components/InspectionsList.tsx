@@ -29,6 +29,22 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
     const [updating, setUpdating] = useState(false);
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
     const [photoLoading, setPhotoLoading] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+
+    const handleDelete = async (e: React.MouseEvent, inspectionId: string) => {
+        e.stopPropagation();
+        if (!window.confirm('¿Estás seguro que deseas eliminar esta inspección permanentemente?')) return;
+        setDeletingId(inspectionId);
+        try {
+            const res = await authFetch(`/api/inspections/${inspectionId}`, { method: 'DELETE' });
+            if (res.ok) {
+                fetchList();
+            }
+        } catch (error) {
+            console.error('Error deleting inspection', error);
+        }
+        setDeletingId(null);
+    };
 
     const fetchList = async () => {
         setLoading(true);
@@ -323,7 +339,19 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
                                         <span className="text-slate-600">{(ins.risks || []).length} riesgo{(ins.risks || []).length !== 1 ? 's' : ''}</span>
                                     </div>
                                 </div>
-                                <ChevronRight className="w-4 h-4 text-slate-700 group-hover:text-white transition-colors" />
+                                <div className="flex items-center gap-2">
+                                    {user?.role === 'admin' && (
+                                        <button
+                                            onClick={(e) => handleDelete(e, ins.inspectionId)}
+                                            disabled={deletingId === ins.inspectionId}
+                                            className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+                                            title="Eliminar inspección"
+                                        >
+                                            {deletingId === ins.inspectionId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                        </button>
+                                    )}
+                                    <ChevronRight className="w-4 h-4 text-slate-700 group-hover:text-white transition-colors" />
+                                </div>
                             </div>
                         );
                     })}
