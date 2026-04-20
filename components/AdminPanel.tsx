@@ -33,6 +33,8 @@ export const AdminPanel: React.FC = () => {
     const [tenantName, setTenantName] = useState('');
     const [companies, setCompanies] = useState<any[]>([]);
     const [companiesLoading, setCompaniesLoading] = useState(true);
+    const [inspections, setInspections] = useState<any[]>([]);
+    const [inspectionsLoading, setInspectionsLoading] = useState(true);
 
     // Form state: Users
     const [newEmail, setNewEmail] = useState('');
@@ -52,11 +54,13 @@ export const AdminPanel: React.FC = () => {
         setLoading(true);
         setPlantsLoading(true);
         setCompaniesLoading(true);
+        setInspectionsLoading(true);
         try {
-            const [usersRes, configRes, companiesRes] = await Promise.all([
+            const [usersRes, configRes, companiesRes, inspectionsRes] = await Promise.all([
                 authFetch('/api/users'),
                 authFetch('/api/config'),
                 authFetch('/api/companies/list'),
+                authFetch('/api/inspections/list'),
             ]);
             
             const usersData = await usersRes.json();
@@ -70,10 +74,14 @@ export const AdminPanel: React.FC = () => {
 
             const companiesData = await companiesRes.json();
             if (companiesData.ok) setCompanies(companiesData.companies || []);
+
+            const inspectionsData = await inspectionsRes.json();
+            if (inspectionsData.ok) setInspections(inspectionsData.inspections || []);
         } catch {}
         setLoading(false);
         setPlantsLoading(false);
         setCompaniesLoading(false);
+        setInspectionsLoading(false);
     };
 
     useEffect(() => { fetchData(); }, []);
@@ -200,6 +208,18 @@ export const AdminPanel: React.FC = () => {
         setPlantsSaving(false);
     };
 
+    const LEVEL_STYLE: Record<string, { color: string; bg: string; label: string }> = {
+        alto:  { color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20',     label: '🔴 ALTO'  },
+        medio: { color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20', label: '🟡 MEDIO' },
+        bajo:  { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', label: '🟢 BAJO' },
+    };
+
+    const STATUS_STYLE: Record<string, { color: string; label: string }> = {
+        pendiente:   { color: 'text-red-400',     label: 'Pendiente'   },
+        en_progreso: { color: 'text-amber-400',   label: 'En progreso' },
+        resuelto:    { color: 'text-emerald-400', label: 'Resuelto'    },
+    };
+
     const ROLE_STYLE: Record<string, { color: string; bg: string; label: string }> = {
         admin: { color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', label: 'Admin' },
         supervisor: { color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20', label: 'Supervisor' },
@@ -222,7 +242,7 @@ export const AdminPanel: React.FC = () => {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-xl font-bold text-white">Panel de Administración</h2>
-                    <p className="text-slate-500 text-sm mt-0.5">{tenantName || 'Gestioná tu empresa'}</p>
+                    <p className="text-slate-500 text-sm mt-0.5">Gestión de usuarios y empresas</p>
                 </div>
             </div>
 
@@ -604,6 +624,80 @@ export const AdminPanel: React.FC = () => {
                             ))}
                         </div>
                     )}
+
+                    {/* ── Inspecciones recientes ── */}
+                    <div className="border-t border-slate-800 pt-6 mt-6">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">
+                            Últimas inspecciones ({inspections.length})
+                        </h3>
+
+                        {inspectionsLoading ? (
+                            <div className="flex items-center justify-center h-20">
+                                <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                            </div>
+                        ) : inspections.length === 0 ? (
+                            <div className="text-center py-8 bg-slate-900/20 border border-dashed border-slate-800 rounded-xl">
+                                <p className="text-slate-600 text-sm">No hay inspecciones realizadas</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {inspections.slice(0, 15).map((ins: any) => {
+                                    const maxLevel = (ins.risks || []).reduce((h: string, r: any) => {
+                                        const o: Record<string, number> = { alto: 3, medio: 2, bajo: 1 };
+                                        return (o[r.level] || 0) > (o[h] || 0) ? r.level : h;
+                                    }, 'bajo');
+                                    const ls = LEVEL_STYLE[maxLevel] || LEVEL_STYLE.medio;
+                                    const ts = STATUS_STYLE[ins.task?.status] || STATUS_STYLE.pendiente;
+
+                                    return (
+                                        <div key={ins.inspectionId}
+                                            className="flex items-center gap-3 p-3 bg-slate-900/30 border border-slate-800 rounded-xl"
+                                            style={{ borderLeftWidth: 3, borderLeftColor: maxLevel === 'alto' ? '#EF4444' : maxLevel === 'medio' ? '#F59E0B' : '#22C55E' }}>
+                                            {/* Fecha */}
+                                            <div className="w-12 text-center shrink-0">
+                                                <div className="text-xs font-bold text-slate-300">
+                                                    {new Date(ins.createdAt).toLocaleDateString('es-AR', { day: '2-digit' })}
+                                                </div>
+                                                <div className="text-[9px] text-slate-600 uppercase">
+                                                    {new Date(ins.createdAt).toLocaleDateString('es-AR', { month: 'short' })}
+                                                </div>
+                                            </div>
+
+                                            {/* Info */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <span className="text-xs font-bold text-white truncate">
+                                                        {ins.companyName || '-'}
+                                                    </span>
+                                                    {maxLevel === 'alto' && (
+                                                        <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">
+                                                            ALTO
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 truncate">
+                                                    {ins.plant} · {ins.operator} · {(ins.risks || []).length} riesgo{(ins.risks || []).length !== 1 ? 's' : ''}
+                                                </div>
+                                            </div>
+
+                                            {/* Estado */}
+                                            <div className="shrink-0">
+                                                <span className={`text-[9px] font-bold ${ts.color}`}>
+                                                    {ts.label}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {inspections.length > 15 && (
+                                    <p className="text-center text-[10px] text-slate-600 pt-2">
+                                        Mostrando 15 de {inspections.length} inspecciones
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
