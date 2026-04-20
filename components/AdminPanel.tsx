@@ -901,26 +901,28 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                                     {isExpanded && (
                                     <>
                                     {/* Usuarios asignados a esta empresa */}
-                                    {(() => {
-                                        const assignedUsers = users.filter(u => (u.assigned_companies || []).includes(c.companyId));
-                                        if (assignedUsers.length === 0) return null;
-                                        return (
-                                            <div className="border-t border-slate-800 pt-3 mb-3">
-                                                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-2 flex items-center justify-between">
-                                                    <span>Usuarios Asignados</span>
-                                                    <span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{assignedUsers.length}</span>
-                                                </p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {assignedUsers.map(u => (
-                                                        <div key={u.id} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 border border-slate-800 rounded-lg text-[10px]">
-                                                            <UserCog className="w-3 h-3 text-emerald-400" />
-                                                            <span className="text-slate-300 font-medium">{u.display_name || u.email}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
+                                    <div className="border-t border-slate-800 pt-4 mb-4">
+                                        <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-3 flex items-center gap-1.5"><UsersIcon className="w-3.5 h-3.5" /> Asignar Inspectores</h5>
+                                        <div className="flex flex-wrap gap-2">
+                                            {users.filter(u => u.role !== 'admin').map(u => {
+                                                const assigned = (u.assigned_companies || []).includes(c.companyId);
+                                                return (
+                                                    <button
+                                                        key={u.id}
+                                                        onClick={(e) => { e.stopPropagation(); handleToggleUserCompany(u.id, c.companyId); }}
+                                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                                                            assigned 
+                                                            ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
+                                                            : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700/50'
+                                                        }`}
+                                                    >
+                                                        {assigned ? <CheckCircle className="w-3 h-3" /> : <UserPlus className="w-3 h-3 opacity-50" />}
+                                                        {u.display_name || u.email}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
 
                                     {/* Plantas y sectores de esta empresa (si los tiene) */}
                                     {c.plants && c.plants.length > 0 && (
