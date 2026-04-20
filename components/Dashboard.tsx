@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { BarChart3, AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown, Loader2, RefreshCw, Building2 } from 'lucide-react';
+import { BarChart3, AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown, Loader2, RefreshCw, Building2, HardHat, Factory, Construction } from 'lucide-react';
 import { InspectionsList } from './InspectionsList';
 
 const RISK_COLORS: Record<string, string> = { alto: '#EF4444', medio: '#F59E0B', bajo: '#22C55E' };
-const CAT_META: Record<string, { label: string; icon: string; color: string }> = {
-    epp: { label: 'EPP', icon: '🦺', color: '#3B82F6' },
-    condiciones: { label: 'Condiciones', icon: '🏭', color: '#8B5CF6' },
-    comportamiento: { label: 'Comportamiento', icon: '🚧', color: '#EC4899' },
+const CAT_META: Record<string, { label: string; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string }> = {
+    epp: { label: 'EPP', Icon: HardHat, color: '#3B82F6' },
+    condiciones: { label: 'Condiciones', Icon: Factory, color: '#8B5CF6' },
+    comportamiento: { label: 'Comportamiento', Icon: Construction, color: '#EC4899' },
 };
 
 interface DashboardProps {
@@ -79,7 +79,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ companyId, companyName }) 
                         return (
                             <div key={key} className="mb-3">
                                 <div className="flex justify-between text-xs mb-1">
-                                    <span className="text-slate-400">{meta.icon} {meta.label}</span>
+                                    <span className="text-slate-400 inline-flex items-center gap-1.5">
+                                        <meta.Icon className="w-3.5 h-3.5" style={{ color: meta.color }} />
+                                        {meta.label}
+                                    </span>
                                     <span className="font-bold font-mono" style={{ color: meta.color }}>{val}</span>
                                 </div>
                                 <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">

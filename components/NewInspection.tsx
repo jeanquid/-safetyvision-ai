@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Camera, Upload, Loader2, AlertTriangle, CheckCircle, Send, FileText, Building2 } from 'lucide-react';
+import { Camera, Upload, Loader2, AlertTriangle, CheckCircle, Send, FileText, Building2, HardHat, Factory, Construction, Lightbulb, BarChart3, X, Check } from 'lucide-react';
 
 const RISK_META: Record<string, { color: string; bg: string; label: string }> = {
     alto: { color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', label: 'ALTO' },
@@ -8,7 +8,12 @@ const RISK_META: Record<string, { color: string; bg: string; label: string }> = 
     bajo: { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', label: 'BAJO' },
 };
 
-const CAT_ICONS: Record<string, string> = { epp: '🦺', condiciones: '🏭', comportamiento: '🚧' };
+const CategoryIcon: React.FC<{ category: string; className?: string }> = ({ category, className = 'w-5 h-5' }) => {
+    if (category === 'epp') return <HardHat className={className} />;
+    if (category === 'condiciones') return <Factory className={className} />;
+    if (category === 'comportamiento') return <Construction className={className} />;
+    return <AlertTriangle className={className} />;
+};
 
 /**
  * Comprime una imagen en el navegador usando Canvas.
@@ -234,7 +239,9 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
     if (saved) {
         return (
             <div className="max-w-md mx-auto text-center py-20">
-                <div className="text-5xl mb-4">✅</div>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                    <CheckCircle className="w-8 h-8 text-emerald-400" />
+                </div>
                 <h2 className="text-xl font-bold text-white mb-2">Inspección Guardada</h2>
                 <p className="text-slate-500 text-sm">La tarea correctiva fue asignada para la empresa {companyName}.</p>
             </div>
@@ -309,7 +316,9 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                         <div className="relative rounded-xl overflow-hidden border border-slate-700">
                             <img src={imagePreview} alt="preview" className="w-full max-h-64 object-cover" />
                             <button onClick={() => { setImagePreview(null); setImageBase64(null); }}
-                                className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs hover:bg-black/80">✕</button>
+                                className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-7 h-7 flex items-center justify-center hover:bg-black/80">
+                                <X className="w-3.5 h-3.5" />
+                            </button>
                         </div>
                     ) : (
                         <div onClick={() => fileRef.current?.click()}
@@ -379,7 +388,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                                     isActive ? 'bg-blue-500/20 text-blue-400' :
                                     'bg-slate-800 text-slate-600'
                                 }`}>
-                                    {isDone ? '✓' : i + 1}
+                                    {isDone ? <Check className="w-3.5 h-3.5" /> : i + 1}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className={`text-sm font-medium ${isActive ? 'text-white' : isDone ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -406,7 +415,9 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
     return (
         <div className="max-w-2xl mx-auto space-y-6">
             <div className="text-center">
-                <div className="text-4xl mb-2">📊</div>
+                <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
+                    <BarChart3 className="w-7 h-7 text-blue-400" />
+                </div>
                 <h2 className="text-xl font-bold text-white">Resultados del Análisis</h2>
                 <p className="text-slate-500 text-sm mt-1">Empresa: {companyName} · Modelo: {aiModel}</p>
             </div>
@@ -417,10 +428,17 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                     return (
                         <div key={i} className={`flex items-center gap-4 p-4 bg-slate-900 border rounded-xl ${meta.bg}`}
                             style={{ borderLeftWidth: 4, borderLeftColor: r.level === 'alto' ? '#EF4444' : r.level === 'medio' ? '#F59E0B' : '#22C55E' }}>
-                            <span className="text-2xl">{CAT_ICONS[r.category] || '⚠️'}</span>
+                            <div className="w-10 h-10 rounded-lg bg-slate-800/60 border border-slate-700 flex items-center justify-center shrink-0 text-slate-300">
+                                <CategoryIcon category={r.category} />
+                            </div>
                             <div className="flex-1">
                                 <div className="text-sm text-white font-bold">{r.description}</div>
-                                {r.recommendation && <div className="text-xs text-blue-400 mt-1">💡 {r.recommendation}</div>}
+                                {r.recommendation && (
+                                    <div className="text-xs text-blue-400 mt-1 flex items-start gap-1.5">
+                                        <Lightbulb className="w-3 h-3 mt-0.5 shrink-0" />
+                                        <span>{r.recommendation}</span>
+                                    </div>
+                                )}
                             </div>
                             <span className={`text-[9px] font-black px-2 py-1 rounded-lg border ${meta.bg} ${meta.color}`}>{meta.label}</span>
                         </div>

@@ -320,9 +320,9 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
     };
 
     const LEVEL_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-        alto:  { color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20',     label: '🔴 ALTO'  },
-        medio: { color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20', label: '🟡 MEDIO' },
-        bajo:  { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', label: '🟢 BAJO' },
+        alto:  { color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20',     label: 'ALTO'  },
+        medio: { color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20', label: 'MEDIO' },
+        bajo:  { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', label: 'BAJO' },
     };
 
     const STATUS_STYLE: Record<string, { color: string; label: string }> = {
