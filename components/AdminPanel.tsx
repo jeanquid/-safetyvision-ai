@@ -16,7 +16,11 @@ interface UserRecord {
     created_at: string;
 }
 
-export const AdminPanel: React.FC = () => {
+interface Props {
+    onNewCompany?: () => void;
+}
+
+export const AdminPanel: React.FC<Props> = ({ onNewCompany }) => {
     const { authFetch, user } = useAuth();
     const [users, setUsers] = useState<UserRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -545,6 +549,14 @@ export const AdminPanel: React.FC = () => {
                         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
                             Empresas registradas ({companies.length})
                         </h3>
+                        {onNewCompany && (
+                            <button
+                                onClick={onNewCompany}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-blue-600/10 text-blue-400 border border-blue-500/20 text-xs font-semibold rounded-lg hover:bg-blue-600/20 transition-all"
+                            >
+                                <Plus className="w-3.5 h-3.5" /> Nueva Empresa
+                            </button>
+                        )}
                     </div>
 
                     {companiesLoading ? (
