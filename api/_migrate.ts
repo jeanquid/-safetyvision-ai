@@ -154,6 +154,24 @@ async function migrate() {
             );
         `);
         console.log('✅ Table "ai_feedback" OK.');
+        
+        console.log('--- Creating table: schedules ---');
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS schedules (
+                id UUID PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                company_id UUID REFERENCES companies(company_id),
+                inspector_id UUID REFERENCES users(id),
+                scheduled_date DATE NOT NULL,
+                status TEXT NOT NULL DEFAULT 'programada',
+                data JSONB NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_schedules_tenant ON schedules(tenant_id);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_schedules_inspector ON schedules(inspector_id);`);
+        console.log('✅ Table "schedules" OK.');
 
         await seedUsers();
         console.log('🎉 Migration completed!');

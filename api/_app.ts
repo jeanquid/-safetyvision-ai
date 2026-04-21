@@ -25,6 +25,12 @@ import {
     deleteHandler,
     dashboardHandler,
 } from './_inspections/handlers.js';
+import {
+    createScheduleHandler,
+    listSchedulesHandler,
+    updateScheduleHandler,
+    deleteScheduleHandler
+} from './_schedules.js';
 
 export async function createApiApp() {
     const app = express();
@@ -341,6 +347,14 @@ export async function createApiApp() {
     });
 
     app.use('/api/companies', companyRouter);
+
+    // ── Schedule Routes ──
+    const scheduleRouter = express.Router();
+    scheduleRouter.post('/create', safeAuth, createScheduleHandler);
+    scheduleRouter.get('/list', safeAuth, listSchedulesHandler);
+    scheduleRouter.put('/:id', safeAuth, updateScheduleHandler);
+    scheduleRouter.delete('/:id', safeAuth, deleteScheduleHandler);
+    app.use('/api/schedules', scheduleRouter);
 
     // ── Dashboard ──
     app.get(['/api/dashboard', '/dashboard'], safeAuth, dashboardHandler);

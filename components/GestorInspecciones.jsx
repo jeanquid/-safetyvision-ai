@@ -200,14 +200,18 @@ export default function GestorInspecciones() {
     async function load() {
       setLoadingData(true);
       try {
-        const [compRes, userRes] = await Promise.all([
+        const [compRes, userRes, schedRes] = await Promise.all([
           authFetch("/api/companies/list"),
           authFetch("/api/users"),
+          authFetch("/api/schedules/list"),
         ]);
         const compData = await compRes.json();
         const userData = await userRes.json();
+        const schedData = await schedRes.json();
+
         if (compData.ok) setCompanies(compData.companies || []);
         if (userData.ok) setInspectors((userData.users || []).filter(u => u.role === "inspector"));
+        if (schedData.ok) setTasks(schedData.schedules || []);
       } catch (e) {
         console.error("GestorInspecciones load error:", e);
       }
@@ -218,10 +222,24 @@ export default function GestorInspecciones() {
 
   const vencidas = tasks.filter(t => new Date(t.scheduledDate) < today && t.status === "programada").length;
 
-  const handleSchedule = (t) => {
-    setTasks(p => [...p, t]);
-    setShowForm(false);
-    setToast(`Inspección programada — ${t.inspectorName}`);
+  const handleSchedule = async (t) => {
+    try {
+      const res = await authFetch("/api/schedules/create", {
+        method: "POST",
+        body: JSON.stringify(t),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setTasks(p => [...p, data.schedule]);
+        setShowForm(false);
+        setToast(`Inspección programada — ${t.inspectorName}`);
+      } else {
+        alert("Error al programar: " + data.error);
+      }
+    } catch (e) {
+      console.error("Error scheduling:", e);
+      alert("Error de conexión al programar");
+    }
   };
 
   return (

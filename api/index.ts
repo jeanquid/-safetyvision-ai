@@ -20,6 +20,7 @@ async function ensureTables() {
             await db.query('SELECT 1 FROM photos LIMIT 0');
             await db.query('SELECT 1 FROM ai_feedback LIMIT 0');
             await db.query('SELECT 1 FROM audit_trail LIMIT 0');
+            await db.query('SELECT 1 FROM schedules LIMIT 0');
         } catch {
             throw new Error('Missing tables or columns');
         }
@@ -129,6 +130,23 @@ async function ensureTables() {
             );
         `);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_feedback_tenant ON ai_feedback(tenant_id);`);
+
+        // Table: schedules (Planned inspections)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS schedules (
+                id UUID PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                company_id UUID REFERENCES companies(company_id),
+                inspector_id UUID REFERENCES users(id),
+                scheduled_date DATE NOT NULL,
+                status TEXT NOT NULL DEFAULT 'programada',
+                data JSONB NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_schedules_tenant ON schedules(tenant_id);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_schedules_inspector ON schedules(inspector_id);`);
 
         migrated = true;
         logger.info('init', 'Auto-migration complete');

@@ -216,13 +216,10 @@ export default function InspeccionesProgramadas() {
     async function load() {
       setLoadingData(true);
       try {
-        const res = await authFetch("/api/companies/list");
+        const res = await authFetch("/api/schedules/list");
         const data = await res.json();
-        if (data.ok && data.companies) {
-          // Por ahora la bandeja parte vacía — las tareas se agregan cuando el admin
-          // programa inspecciones desde el Gestor. Guardamos las empresas solo
-          // para validación futura si se persiste la agenda en el backend.
-          // (la lista de tareas se mantiene en estado local por sesión)
+        if (data.ok && data.schedules) {
+          setTasks(data.schedules);
         }
       } catch (e) {
         console.error("InspeccionesProgramadas load error:", e);
@@ -247,31 +244,63 @@ export default function InspeccionesProgramadas() {
     reprogramada: enriched.filter(t => t._es === "reprogramada").length,
   };
 
-  const handleReschedule = (d, r) => {
-    setTasks(p =>
-      p.map(t => t.id !== rescheduleTask.id ? t : {
-        ...t, status: "reprogramada",
-        rescheduleHistory: [...(t.rescheduleHistory || []), { from: t.scheduledDate, to: d, reason: r }],
-      }).concat([{
-        ...rescheduleTask,
-        id: "t" + Date.now(),
-        scheduledDate: d,
-        status: "programada",
-        rescheduleHistory: [...(rescheduleTask.rescheduleHistory || []), { from: rescheduleTask.scheduledDate, to: d, reason: r }],
-      }])
-    );
-    setRescheduleTask(null);
-    setToast(`Reprogramada al ${new Date(d + "T12:00:00").toLocaleDateString("es-AR")}`);
+  const handleReschedule = async (d, r) => {
+    try {
+      // 1. Marcar la original como reprogramada
+      const res1 = await authFetch(`/api/schedules/${rescheduleTask.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ 
+          status: "reprogramada",
+          rescheduleHistory: [...(rescheduleTask.rescheduleHistory || []), { from: rescheduleTask.scheduledDate, to: d, reason: r }]
+        }),
+      });
+      
+      // 2. Crear la nueva tarea programada
+      const res2 = await authFetch("/api/schedules/create", {
+        method: "POST",
+        body: JSON.stringify({
+          ...rescheduleTask,
+          scheduledDate: d,
+          status: "programada",
+          rescheduleHistory: [...(rescheduleTask.rescheduleHistory || []), { from: rescheduleTask.scheduledDate, to: d, reason: r }]
+        }),
+      });
+
+      const d1 = await res1.json();
+      const d2 = await res2.json();
+
+      if (d1.ok && d2.ok) {
+        setTasks(p => p.map(t => t.id === rescheduleTask.id ? d1.schedule : t).concat([d2.schedule]));
+        setRescheduleTask(null);
+        setToast(`Reprogramada al ${new Date(d + "T12:00:00").toLocaleDateString("es-AR")}`);
+      }
+    } catch (e) {
+      console.error("Error rescheduling:", e);
+      alert("Error al reprogramar");
+    }
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     const iid = "insp-" + Math.random().toString(36).substring(2, 6);
-    setTasks(p => p.map(t => t.id === executingTask.id
-      ? { ...t, status: "realizada", linkedInspectionId: iid, completedAt: fmt(today) }
-      : t
-    ));
-    setExecutingTask(null);
-    setToast(`Inspección #${iid} marcada como completada`);
+    try {
+      const res = await authFetch(`/api/schedules/${executingTask.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ 
+          status: "realizada", 
+          linkedInspectionId: iid, 
+          completedAt: fmt(today) 
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setTasks(p => p.map(t => t.id === executingTask.id ? data.schedule : t));
+        setExecutingTask(null);
+        setToast(`Inspección #${iid} marcada como completada`);
+      }
+    } catch (e) {
+      console.error("Error completing:", e);
+      alert("Error al completar la tarea");
+    }
   };
 
   return (
