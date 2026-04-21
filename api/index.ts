@@ -19,6 +19,7 @@ async function ensureTables() {
             await db.query('SELECT assigned_companies FROM users LIMIT 0');
             await db.query('SELECT 1 FROM photos LIMIT 0');
             await db.query('SELECT 1 FROM ai_feedback LIMIT 0');
+            await db.query('SELECT 1 FROM audit_trail LIMIT 0');
         } catch {
             throw new Error('Missing tables or columns');
         }
@@ -88,6 +89,27 @@ async function ensureTables() {
             );
         `);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_photos_inspection ON photos(inspection_id);`);
+
+        // Table: audit_trail (Intervention tracking)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS audit_trail (
+                id UUID PRIMARY KEY,
+                inspection_id UUID REFERENCES inspections(inspection_id) ON DELETE CASCADE,
+                tenant_id TEXT NOT NULL,
+                risk_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                from_status TEXT,
+                to_status TEXT,
+                note TEXT,
+                inspector_id TEXT NOT NULL,
+                inspector_email TEXT NOT NULL,
+                inspector_name TEXT NOT NULL,
+                seal TEXT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_audit_trail_inspection ON audit_trail(inspection_id);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_audit_trail_tenant ON audit_trail(tenant_id);`);
 
         // Table: ai_feedback (Analytics)
         await db.query(`

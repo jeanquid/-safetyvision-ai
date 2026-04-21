@@ -20,6 +20,7 @@ import {
     createHandler,
     listHandler,
     getHandler,
+    updateRiskHandler,
     updateTaskHandler,
     deleteHandler,
     dashboardHandler,
@@ -39,7 +40,7 @@ export async function createApiApp() {
             res.setHeader('Vary', 'Origin');
         }
         res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS,PUT');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS,PUT,PATCH');
         res.setHeader(
             'Access-Control-Allow-Headers',
             'Content-Type, Authorization, X-AI-Model'
@@ -135,6 +136,7 @@ export async function createApiApp() {
     insRouter.post('/create', safeAuth, createHandler);
     insRouter.get('/list', safeAuth, listHandler);
     insRouter.get('/:id', safeAuth, getHandler);
+    insRouter.patch('/:id/risks/:riskId', safeAuth, updateRiskHandler);
     insRouter.post('/:id/update-task', safeAuth, updateTaskHandler);
     insRouter.delete('/:id', safeAuth, deleteHandler);
     app.use('/api/inspections', insRouter);
