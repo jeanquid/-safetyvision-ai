@@ -26,7 +26,7 @@ function measureText(doc: PDFKit.PDFDocument, text: string, font: string, size: 
     return doc.heightOfString(text, { width });
 }
 
-/** Si no hay espacio suficiente, salta de página. Devuelve doc.y actual. */
+/** Si no hay espacio suficiente, salta de página. */
 function needSpace(doc: PDFKit.PDFDocument, h: number): void {
     if (doc.y + h > BOTTOM) {
         doc.addPage();
@@ -201,7 +201,7 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
             doc.font('Helvetica').fontSize(7).fillColor('#94a3b8')
                .text(`Confianza IA: ${risk.confidence}%`, M + 10, cy);
 
-            // Mover cursor DESPUÉS del bloque
+            // Mover cursor DESPUÉS del bloque (siempre correcto)
             doc.fillColor('#000000');
             doc.y = blockY + blockH + 6;
         });
@@ -209,7 +209,7 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
         doc.moveDown(0.8);
 
         // ═══════════════════════════════════════════════════════════════════
-        // PLAN DE ACCIÓN (lista numerada, no concatenado)
+        // PLAN DE ACCIÓN (lista numerada)
         // ═══════════════════════════════════════════════════════════════════
         sectionTitle(doc, 'PLAN DE ACCIÓN CORRECTIVA');
 
