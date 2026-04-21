@@ -15,7 +15,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
 
     const baseNavItems = [
         ...(user?.role !== 'admin' ? [{ key: 'companies', icon: Building2, label: 'Mis Empresas', color: 'text-blue-400' }] : []),
-        ...(user?.role !== 'admin' ? [{ key: 'new', icon: Camera, label: 'Nueva Inspección', color: 'text-emerald-400', requiresCompany: true }] : [])
+        ...(user?.role !== 'admin' ? [{ key: 'new', icon: Camera, label: 'Nueva Inspección', color: 'text-emerald-400', requiresCompany: true }] : []),
+        ...(user?.role !== 'admin' ? [{ key: 'inspections', icon: ClipboardList, label: 'Inspecciones', color: 'text-amber-400', requiresCompany: true }] : [])
     ];
 
     const navItems = user?.role === 'admin'
@@ -113,7 +114,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
                                     <>
                                         <ChevronRight className="w-3 h-3 text-slate-700 shrink-0" />
                                         <span className="text-xs font-bold text-white uppercase tracking-wider">
-                                            {currentView === 'new_inspection' ? 'NUEVA INSPECCIÓN' : currentView === 'new_company' ? 'NUEVA EMPRESA' : currentView}
+                                            {currentView === 'new_inspection' ? 'NUEVA INSPECCIÓN' : currentView === 'new_company' ? 'NUEVA EMPRESA' : currentView === 'new' ? 'NUEVA INSPECCIÓN' : currentView === 'inspections' ? 'INSPECCIONES' : currentView}
                                         </span>
                                     </>
                                 )}
