@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import { compressImage } from '../_compress-image.js';
-import { createInspection, getInspection, updateInspection, listInspections, deleteInspection, getDashboardStats, saveAiFeedback } from '../_store.js';
+import { createInspection, getInspection, updateInspection, listInspections, deleteInspection, getDashboardStats, saveAiFeedback, updateRiskStatus } from '../_store.js';
 import { savePhoto } from '../_storage.js';
 import { analyzeImageWithGemini, analyzeTextDescription, validateImage } from '../_ai-engine.js';
 import { notifyAlert } from '../_notify.js';
-import { DetectedRisk } from '../_types.js';
+import { DetectedRisk, deriveInspectionStatus, deriveTaskStatus } from '../_types.js';
 import { logger } from '../_logger.js';
 
 /** POST /api/inspections/analyze — AI image/text analysis */
@@ -17,7 +17,6 @@ export const analyzeHandler = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'imageBase64 or description required' });
         }
 
-        // --- PHASE 4: Compression & Industrial Validation ---
         let compressionStats;
         if (imageBase64) {
             const compressed = await compressImage(imageBase64, mimeType || 'image/jpeg');
@@ -69,6 +68,12 @@ export const createHandler = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'companyId, plant, risks, and task are required' });
         }
 
+        const enrichedRisks = (risks as DetectedRisk[]).map(r => ({
+            ...r,
+            status: r.status || 'pendiente' as const,
+            history: [],
+        }));
+
         const inspection = await createInspection({
             tenantId: user.tenantId,
             userId: user.userId,
@@ -77,28 +82,26 @@ export const createHandler = async (req: Request, res: Response) => {
             plant,
             sector: sector || 'Sin especificar',
             operator: operator || user.displayName || user.email,
-            risks,
+            risks: enrichedRisks,
             task,
             aiAnalysis,
             photoUrl,
         });
 
-        // Send alert for high-risk detections
-        const hasHigh = risks.some((r: DetectedRisk) => r.level === 'alto');
+        const hasHigh = enrichedRisks.some((r: DetectedRisk) => r.level === 'alto');
         if (hasHigh) {
             void notifyAlert('riesgo_alto_detectado', {
                 inspection_id: inspection.inspectionId,
                 plant,
                 sector,
                 operator,
-                riesgos_altos: risks.filter((r: DetectedRisk) => r.level === 'alto').length,
+                riesgos_altos: enrichedRisks.filter((r: DetectedRisk) => r.level === 'alto').length,
                 accion: task.action,
                 responsable: task.responsible,
                 plazo: task.deadline,
             });
         }
 
-        // --- PHASE 2: Persist photo if present ---
         let photoId: string | undefined;
         if (req.body.imageBase64) {
             photoId = await savePhoto(
@@ -108,46 +111,21 @@ export const createHandler = async (req: Request, res: Response) => {
             );
         }
 
-        // Actualizar el state con la referencia a la foto
         if (photoId) {
             await updateInspection(inspection.inspectionId, (ins) => {
                 ins.photoUrl = `photo:${photoId}`;
             });
         }
 
-        // --- PHASE 5: AI Feedback Analytics ---
         if (aiAnalysis?.originalRisks) {
             const original = aiAnalysis.originalRisks || [];
-            const final = risks || [];
-            
-            const stats = {
-                accepted: 0,
-                edited: 0, // por ahora no detectamos edición profunda
-                removed: 0,
-                added: 0
-            };
-
+            const final = enrichedRisks || [];
+            const stats = { accepted: 0, edited: 0, removed: 0, added: 0 };
             const finalIds = new Set(final.map((r: any) => r.id));
             const originalIds = new Set(original.map((r: any) => r.id));
-
-            original.forEach((r: any) => {
-                if (finalIds.has(r.id)) stats.accepted++;
-                else stats.removed++;
-            });
-
-            final.forEach((r: any) => {
-                if (!originalIds.has(r.id)) stats.added++;
-            });
-
-            void saveAiFeedback({
-                inspectionId: inspection.inspectionId,
-                tenantId: user.tenantId,
-                aiRisks: original,
-                finalRisks: final,
-                stats,
-                plant,
-                sector
-            });
+            original.forEach((r: any) => { if (finalIds.has(r.id)) stats.accepted++; else stats.removed++; });
+            final.forEach((r: any) => { if (!originalIds.has(r.id)) stats.added++; });
+            void saveAiFeedback({ inspectionId: inspection.inspectionId, tenantId: user.tenantId, aiRisks: original, finalRisks: final, stats, plant, sector });
         }
 
         res.json({ ok: true, inspectionId: inspection.inspectionId, state: inspection });
@@ -172,7 +150,6 @@ export const listHandler = async (req: Request, res: Response) => {
             offset: offset ? parseInt(offset as string) : 0,
         });
 
-        // Return summary (no heavy base64 photos)
         const summary = inspections.map(i => ({
             ...i,
             photoUrl: i.photoUrl ? '[has_photo]' : null,
@@ -194,12 +171,10 @@ export const getHandler = async (req: Request, res: Response) => {
 
         if (!inspection) return res.status(404).json({ error: 'Inspection not found' });
 
-        // CRITICAL: validar que pertenece al tenant del usuario
         if (inspection.tenantId !== user.tenantId) {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        // Resolver photoUrl a una URL usable por el frontend
         let resolvedPhotoUrl: string | null = null;
         if (inspection.photoUrl && inspection.photoUrl.startsWith('photo:')) {
             const photoId = inspection.photoUrl.replace('photo:', '');
@@ -208,10 +183,7 @@ export const getHandler = async (req: Request, res: Response) => {
 
         res.json({
             ok: true,
-            inspection: {
-                ...inspection,
-                resolvedPhotoUrl, // URL directa para <img src="...">
-            }
+            inspection: { ...inspection, resolvedPhotoUrl },
         });
     } catch (error: any) {
         logger.error('inspections', 'Get inspection failed', { error: error.message });
@@ -219,14 +191,56 @@ export const getHandler = async (req: Request, res: Response) => {
     }
 };
 
-/** POST /api/inspections/:id/update-task — Update task status */
+/**
+ * PATCH /api/inspections/:id/risks/:riskId — Actualizar status de un riesgo individual
+ * Body: { status: 'pendiente' | 'en_progreso' | 'resuelto', note?: string }
+ */
+export const updateRiskHandler = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const id = req.params.id as string;
+        const riskId = req.params.riskId as string;
+        const { status, note } = req.body;
+
+        const existing = await getInspection(id);
+        if (!existing) return res.status(404).json({ error: 'Inspection not found' });
+        if (existing.tenantId !== user.tenantId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        if (!['pendiente', 'en_progreso', 'resuelto'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid status. Must be: pendiente, en_progreso, resuelto' });
+        }
+
+        const updated = await updateRiskStatus(id, riskId, status, {
+            userId: user.userId,
+            email: user.email,
+            displayName: user.displayName,
+        }, note);
+
+        if (updated.status === 'closed' && existing.status !== 'closed') {
+            void notifyAlert('tarea_resuelta', {
+                inspection_id: id,
+                plant: updated.plant,
+                sector: updated.sector,
+                resuelto_por: user.email,
+            });
+        }
+
+        res.json({ ok: true, inspection: updated });
+    } catch (error: any) {
+        logger.error('inspections', 'Update risk status failed', { error: error.message });
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/** POST /api/inspections/:id/update-task — LEGACY: bulk status update (backwards compatible) */
 export const updateTaskHandler = async (req: Request, res: Response) => {
     try {
         const id = req.params.id as string;
         const user = (req as any).user;
         const { status, notes } = req.body;
 
-        // Validar tenant ANTES de actualizar
         const existing = await getInspection(id);
         if (!existing) return res.status(404).json({ error: 'Inspection not found' });
         if (existing.tenantId !== user.tenantId) {
@@ -237,25 +251,23 @@ export const updateTaskHandler = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Invalid status' });
         }
 
-        const updated = await updateInspection(id, (ins) => {
-            ins.task.status = status;
-            if (notes) ins.task.notes = notes;
-            if (status === 'resuelto') {
-                ins.task.resolvedAt = new Date().toISOString();
-                ins.task.resolvedBy = user.email;
-                ins.status = 'closed';
-                // Mark all risks as resolved
-                ins.risks.forEach(r => { r.status = 'resuelto'; });
-            } else if (status === 'en_progreso') {
-                ins.status = 'active';
+        for (const risk of existing.risks) {
+            if (risk.status !== status) {
+                await updateRiskStatus(id, risk.id, status, {
+                    userId: user.userId,
+                    email: user.email,
+                    displayName: user.displayName,
+                }, notes || `Cambio masivo de estado a ${status}`);
             }
-        });
+        }
+
+        const updated = await getInspection(id);
 
         if (status === 'resuelto') {
             void notifyAlert('tarea_resuelta', {
                 inspection_id: id,
-                plant: updated.plant,
-                sector: updated.sector,
+                plant: updated!.plant,
+                sector: updated!.sector,
                 resuelto_por: user.email,
             });
         }
@@ -275,7 +287,6 @@ export const deleteHandler = async (req: Request, res: Response) => {
             return res.status(403).json({ error: 'Only admins can delete inspections' });
         }
 
-        // Validar tenant
         const existing = await getInspection(req.params.id as string);
         if (!existing) return res.status(404).json({ error: 'Inspection not found' });
         if (existing.tenantId !== user.tenantId) {
