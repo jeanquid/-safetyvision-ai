@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LayoutDashboard, Camera, ClipboardList, LogOut, Menu, X, Users, Building2, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Camera, ClipboardList, LogOut, Menu, X, Users, Building2, ChevronRight, CalendarDays } from 'lucide-react';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -15,11 +15,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
 
     const baseNavItems = [
         ...(user?.role !== 'admin' ? [{ key: 'companies', icon: Building2, label: 'Mis Empresas', color: 'text-blue-400' }] : []),
-        ...(user?.role !== 'admin' ? [{ key: 'new', icon: Camera, label: 'Nueva Inspección', color: 'text-emerald-400', requiresCompany: true }] : [])
+        ...(user?.role !== 'admin' ? [{ key: 'new', icon: Camera, label: 'Nueva Inspección', color: 'text-emerald-400', requiresCompany: true }] : []),
+        ...(user?.role !== 'admin' ? [{ key: 'programadas', icon: CalendarDays, label: 'Inspecciones Programadas', color: 'text-pink-400' }] : []),
     ];
 
     const navItems = user?.role === 'admin'
-        ? [...baseNavItems, { key: 'admin', icon: Users, label: 'Administración', color: 'text-purple-400' }]
+        ? [
+            { key: 'admin', icon: Users, label: 'Administración', color: 'text-purple-400' },
+            { key: 'gestor', icon: CalendarDays, label: 'Gestor de Inspecciones', color: 'text-pink-400' },
+          ]
         : baseNavItems;
 
     return (
@@ -113,14 +117,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
                                     <>
                                         <ChevronRight className="w-3 h-3 text-slate-700 shrink-0" />
                                         <span className="text-xs font-bold text-white uppercase tracking-wider">
-                                            {currentView === 'new_inspection' ? 'NUEVA INSPECCIÓN' : currentView === 'new_company' ? 'NUEVA EMPRESA' : currentView}
+                                            {currentView === 'new' ? 'NUEVA INSPECCIÓN'
+                                            : currentView === 'new_company' ? 'NUEVA EMPRESA'
+                                            : currentView === 'programadas' ? 'INSPECCIONES PROGRAMADAS'
+                                            : currentView}
                                         </span>
                                     </>
                                 )}
                             </>
                         ) : (
                             <span className="text-xs font-bold text-white uppercase tracking-wider">
-                                PANEL DE ADMINISTRACIÓN
+                                {currentView === 'gestor' ? 'GESTOR DE INSPECCIONES' : 'PANEL DE ADMINISTRACIÓN'}
                             </span>
                         )}
                     </div>

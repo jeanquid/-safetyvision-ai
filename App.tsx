@@ -6,6 +6,8 @@ import { NewInspection } from './components/NewInspection';
 import { NewCompanyForm } from './components/NewCompanyForm';
 import { InspectionsList } from './components/InspectionsList';
 import { AdminPanel } from './components/AdminPanel';
+import GestorInspecciones from './components/GestorInspecciones';
+import InspeccionesProgramadas from './components/InspeccionesProgramadas';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginScreen } from './components/LoginScreen';
 import { Loader2 } from 'lucide-react';
@@ -24,9 +26,9 @@ function AppContent() {
 
     React.useEffect(() => {
         if (!user) return;
-        if (user.role === 'admin' && currentView === 'companies') {
-            setCurrentView('admin');
-        } else if (user.role !== 'admin' && currentView === 'admin') {
+        if (user.role === 'admin' && (currentView === 'companies' || currentView === 'programadas')) {
+            setCurrentView('gestor');
+        } else if (user.role !== 'admin' && (currentView === 'admin' || currentView === 'gestor')) {
             setCurrentView('companies');
         }
     }, [user, currentView]);
@@ -85,6 +87,10 @@ function AppContent() {
                     onSelectCompany={handleSelectCompany}
                 />
             )}
+
+            {currentView === 'gestor' && <GestorInspecciones />}
+
+            {currentView === 'programadas' && <InspeccionesProgramadas />}
         </Layout>
     );
 }
