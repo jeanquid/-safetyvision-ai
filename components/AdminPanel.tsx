@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
     Users as UsersIcon, Plus, Trash2, Loader2, AlertCircle, UserCog,
-    CheckCircle, Shield, Eye, UserPlus, X, Building, Building2, ChevronRight, ClipboardList, LayoutDashboard, CalendarDays
+    CheckCircle, Shield, Eye, UserPlus, X, Building, Building2, ChevronRight, ClipboardList, LayoutDashboard
 } from 'lucide-react';
 import { InspectionsList } from './InspectionsList';
-import SafetyVisionScheduler from './SafetyVisionScheduler';
 
 interface UserRecord {
     id: string;
@@ -40,8 +39,8 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
     const [success, setSuccess] = useState('');
 
     // Tab state
-    const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'inspections' | 'scheduler'>('users');
-    const [previousTab, setPreviousTab] = useState<'users' | 'companies' | 'inspections' | 'scheduler'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'companies' | 'inspections'>('users');
+    const [previousTab, setPreviousTab] = useState<'users' | 'companies' | 'inspections'>('users');
     const [preSelectInspectionId, setPreSelectInspectionId] = useState<string | null>(null);
     const [tenantPlants, setTenantPlants] = useState<{ name: string; sectors: string[] }[]>([]);
     const [plantsLoading, setPlantsLoading] = useState(true);
@@ -386,17 +385,6 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                 >
                     <ClipboardList className="w-4 h-4" />
                     Inspecciones
-                </button>
-                <button
-                    onClick={() => { setActiveTab('scheduler'); setError(''); setSuccess(''); }}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
-                        activeTab === 'scheduler'
-                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
-                            : 'text-slate-500 hover:text-white hover:bg-slate-800 border border-transparent'
-                    }`}
-                >
-                    <CalendarDays className="w-4 h-4" />
-                    Planificador
                 </button>
             </div>
 
@@ -1046,14 +1034,8 @@ export const AdminPanel: React.FC<Props> = ({ onNewCompany, onSelectCompany }) =
                 <div className="pt-2">
                     <InspectionsList 
                         preSelectInspectionId={preSelectInspectionId}
-                        onBack={() => { setPreSelectInspectionId(null); setActiveTab(previousTab as any); }}
+                        onBack={() => { setPreSelectInspectionId(null); setActiveTab(previousTab); }}
                     />
-                </div>
-            )}
-
-            {activeTab === 'scheduler' && (
-                <div className="-mx-6 -mb-6">
-                    <SafetyVisionScheduler />
                 </div>
             )}
         </div>
