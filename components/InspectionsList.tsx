@@ -482,8 +482,8 @@ export const InspectionsList: React.FC<Props> = ({ companyId, preSelectInspectio
     return (
         <div className="space-y-5">
             <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <ClipboardList className="w-5 h-5 text-amber-400" /> Historial
+                <h2 className="text-xl font-bold text-white">
+                    INSPECCIONES REALIZADAS ({inspections.length})
                 </h2>
                 <button onClick={fetchList} className="text-slate-400 hover:text-white p-2">
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
