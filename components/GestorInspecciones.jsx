@@ -140,13 +140,13 @@ const ScheduleForm = ({ companies, inspectors, onSchedule, onCancel }) => {
 
 // ─── Admin Table ──────────────────────────────────────────────────────────────
 
-const AdminTable = ({ tasks }) => (
+const AdminTable = ({ tasks, onDelete }) => (
   <div style={{ overflowX: "auto" }}>
     <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 3px", fontSize: 12 }}>
       <thead>
         <tr style={{ color: "rgba(255,255,255,0.3)", textTransform: "uppercase", fontSize: 9, letterSpacing: 1 }}>
-          {["Fecha", "Empresa", "Inspector", "Estado", "Recurrencia"].map(h =>
-            <th key={h} style={{ textAlign: "left", padding: "7px 10px", fontWeight: 600 }}>{h}</th>
+          {["Fecha", "Empresa", "Inspector", "Estado", "Recurrencia", ""].map((h, i) =>
+            <th key={i} style={{ textAlign: "left", padding: "7px 10px", fontWeight: 600 }}>{h}</th>
           )}
         </tr>
       </thead>
@@ -168,8 +168,17 @@ const AdminTable = ({ tasks }) => (
               <td style={{ padding: 10 }}>
                 <StatusBadge status={ov ? "vencida" : t.status} />
               </td>
-              <td style={{ padding: 10, borderRadius: "0 8px 8px 0", color: "rgba(255,255,255,0.35)", fontSize: 10 }}>
+              <td style={{ padding: 10, color: "rgba(255,255,255,0.35)", fontSize: 10 }}>
                 {RECURRENCE_OPTIONS.find(r => r.value === t.recurrence)?.label}
+              </td>
+              <td style={{ padding: "10px 10px 10px 6px", borderRadius: "0 8px 8px 0", textAlign: "right" }}>
+                <button
+                  onClick={() => onDelete(t.id)}
+                  title="Eliminar inspección"
+                  style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)", color: "#f87171", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit" }}
+                >
+                  Borrar
+                </button>
               </td>
             </tr>
           );
@@ -222,6 +231,23 @@ export default function GestorInspecciones() {
 
   const vencidas = tasks.filter(t => new Date(t.scheduledDate) < today && t.status === "programada").length;
 
+  const handleDelete = async (id) => {
+    if (!window.confirm("¿Eliminar esta inspección programada?")) return;
+    try {
+      const res = await authFetch(`/api/schedules/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.ok) {
+        setTasks(p => p.filter(t => t.id !== id));
+        setToast("Inspección eliminada");
+      } else {
+        alert("Error al eliminar: " + data.error);
+      }
+    } catch (e) {
+      console.error("Error deleting:", e);
+      alert("Error de conexión al eliminar");
+    }
+  };
+
   const handleSchedule = async (t) => {
     try {
       const res = await authFetch("/api/schedules/create", {
@@ -253,13 +279,10 @@ export default function GestorInspecciones() {
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Gestor de Inspecciones</h2>
-          <p style={{ margin: "4px 0 0", fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
-            {tasks.length} tareas programadas
-            {vencidas > 0 && <span style={{ color: "#f87171", marginLeft: 6 }}>· {vencidas} vencidas</span>}
-          </p>
-        </div>
+        <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
+          {tasks.length} tareas programadas
+          {vencidas > 0 && <span style={{ color: "#f87171", marginLeft: 6 }}>· {vencidas} vencidas</span>}
+        </p>
         <button
           onClick={() => setShowForm(!showForm)}
           disabled={loadingData}
@@ -286,7 +309,7 @@ export default function GestorInspecciones() {
         </div>
       )}
 
-      <AdminTable tasks={tasks} />
+      <AdminTable tasks={tasks} onDelete={handleDelete} />
     </div>
   );
 }

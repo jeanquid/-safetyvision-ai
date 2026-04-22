@@ -27,7 +27,7 @@ function AppContent() {
     React.useEffect(() => {
         if (!user) return;
         if (user.role === 'admin' && (currentView === 'companies' || currentView === 'programadas')) {
-            setCurrentView('gestor');
+            setCurrentView('admin');
         } else if (user.role !== 'admin' && (currentView === 'admin' || currentView === 'gestor')) {
             setCurrentView('companies');
         }
