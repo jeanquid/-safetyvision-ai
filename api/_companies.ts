@@ -112,25 +112,24 @@ export async function deleteCompany(companyId: string): Promise<void> {
 
 export async function getCompaniesWithStats(tenantId: string, userCtx?: any): Promise<CompanyStats[]> {
     let assignedFilter = '';
-    
+    const queryParams: any[] = [tenantId];
+
     if (userCtx && userCtx.role !== 'admin') {
         // Fetch user from DB to get assigned_companies (it might not be in JWT)
         const uRes = await db.query('SELECT assigned_companies FROM users WHERE id = $1', [userCtx.userId]);
         const assignedCompanies = uRes.rows[0]?.assigned_companies || [];
         
         if (assignedCompanies.length === 0) {
-            return []; // No companies assigned
+            return [];
         }
-        
-        // Ensure UUIDs only and build IN clause
-        const validUuids = assignedCompanies.filter((c: any) => typeof c === 'string');
-        const uuidList = validUuids.map((u: string) => `'${u}'`).join(',');
-        
-        if (validUuids.length > 0) {
-            assignedFilter = ` AND c.company_id IN (${uuidList}) `;
-        } else {
-             return [];
-        }
+
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const validUuids = assignedCompanies.filter((c: any) => typeof c === 'string' && UUID_RE.test(c));
+
+        if (validUuids.length === 0) return [];
+
+        assignedFilter = ` AND c.company_id = ANY($2::uuid[]) `;
+        queryParams.push(validUuids);
     }
 
     const result = await db.query(`
@@ -150,7 +149,7 @@ export async function getCompaniesWithStats(tenantId: string, userCtx?: any): Pr
         WHERE c.tenant_id = $1 AND c.status = 'active' ${assignedFilter}
         GROUP BY c.company_id, c.name
         ORDER BY c.name ASC
-    `, [tenantId]);
+    `, queryParams);
 
     return result.rows.map(row => {
         const total = parseInt(row.total_inspections) || 1;

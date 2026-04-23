@@ -62,6 +62,7 @@ export async function createApiApp() {
         res.setHeader('X-XSS-Protection', '0');
         res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
         res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; object-src 'none'");
         next();
     });
 
