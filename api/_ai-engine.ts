@@ -3,6 +3,8 @@ import { VertexAI } from '@google-cloud/vertexai';
 import { DetectedRisk, RiskLevel, RiskCategory } from './_types.js';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './_logger.js';
+import { sanitizeInput } from './_utils.js';
+export { sanitizeInput };
 
 const MODELS_FALLBACK = [
     'gemini-2.5-flash',
@@ -40,17 +42,6 @@ function getClient(type: 'vertex' | 'studio', modelName: string) {
     return null;
 }
 
-function sanitizeInput(text: string): string {
-    if (!text) return '';
-    return text
-        .replace(/[\r\n\t]+/g, ' ')
-        .replace(/```/g, '')
-        .replace(/\{[^}]*\}/g, '')
-        .replace(/\b(ignore|forget|disregard|override)\b.{0,80}\b(previous|above|instruction|prompt|role|system)\b/gi, '[REDACTED]')
-        .replace(/\b(you are now|act as|pretend to be|new instruction|system prompt|jailbreak)\b/gi, '[REDACTED]')
-        .substring(0, 500)
-        .trim();
-}
 
 const VALIDATION_PROMPT = `Observá esta imagen y respondé ÚNICAMENTE con un JSON:
 { "isIndustrial": true/false, "reason": "breve explicación" }

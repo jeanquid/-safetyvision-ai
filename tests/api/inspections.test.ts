@@ -91,6 +91,7 @@ describe('POST /api/inspections/create', () => {
             .post('/api/inspections/create')
             .set(auth())
             .send({
+                companyId: 'co-001',
                 plant: 'Planta Norte',
                 sector: 'Producción L1',
                 operator: 'Juan Pérez',
