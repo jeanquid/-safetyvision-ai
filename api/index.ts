@@ -25,6 +25,35 @@ async function ensureTables() {
         await db.query('SELECT full_name, assigned_companies FROM users LIMIT 0');
         await db.query('SELECT company_id FROM inspections LIMIT 0');
 
+        // Si la tabla de usuarios está vacía, forzar el sembrado de usuarios por defecto
+        const userCountRes = await db.query('SELECT COUNT(*) as count FROM users');
+        const userCount = parseInt(userCountRes.rows[0]?.count || '0', 10);
+        if (userCount === 0) {
+            logger.info('init', 'Database tables exist but users table is empty. Running seedUsers...');
+            await seedUsers();
+        }
+
+        // Si el tenant demo no existe, crearlo
+        const tenantCountRes = await db.query('SELECT COUNT(*) as count FROM tenants WHERE tenant_id = $1', ['sv-demo']);
+        const tenantCount = parseInt(tenantCountRes.rows[0]?.count || '0', 10);
+        if (tenantCount === 0) {
+            logger.info('init', 'Demo tenant missing, inserting it...');
+            await db.query(`
+                INSERT INTO tenants (tenant_id, name, plants)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (tenant_id) DO NOTHING
+            `, [
+                'sv-demo',
+                'SafetyVision Demo',
+                JSON.stringify([
+                    { name: 'Planta Norte', sectors: ['Producción L1', 'Producción L2', 'Almacén', 'Despacho', 'Mantenimiento'] },
+                    { name: 'Planta Sur', sectors: ['Producción', 'Envasado', 'Depósito', 'Laboratorio'] },
+                    { name: 'Planta Central', sectors: ['Oficinas', 'Producción', 'Calderas', 'Subestación eléctrica'] },
+                    { name: 'Obra Externa', sectors: ['Frente de obra', 'Obrador', 'Acopio'] },
+                ])
+            ]);
+        }
+
         migrated = true;
     } catch {
         // La tabla no existe o falta algo — correr migración ligera e idempotente

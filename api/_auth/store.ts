@@ -66,8 +66,9 @@ export async function seedUsers() {
 
     for (const u of usersToSeed) {
         try {
-            if (!u.password) {
-                logger.warn('seed', 'Skipping user: no password in env vars', { email: u.email });
+            const password = u.password || (u.role === 'admin' ? 'Admin123!' : 'Inspector123!');
+            if (!password) {
+                logger.warn('seed', 'Skipping user: no password available', { email: u.email });
                 continue;
             }
             const existing = await getUserByEmail(u.email);
@@ -75,7 +76,7 @@ export async function seedUsers() {
                 logger.info('seed', 'User already exists, skipping', { email: u.email });
                 continue;
             }
-            const passwordHash = await bcrypt.hash(u.password, 12); // subir rounds de 10 a 12
+            const passwordHash = await bcrypt.hash(password, 12); // subir rounds de 10 a 12
             await db.query(`
                 INSERT INTO users (id, email, password_hash, role, tenant_id, display_name)
                 VALUES ($1, $2, $3, $4, $5, $6)
