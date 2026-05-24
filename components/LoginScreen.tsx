@@ -79,7 +79,7 @@ export const LoginScreen: React.FC = () => {
                             value={email}
                             onChange={e => setEmail(e.target.value)}
                             className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-green-600 transition-colors"
-                            placeholder="usuario@hse-ingenieria.com"
+                            placeholder={IS_ENSI ? `usuario@${ENSI_BRAND.website}` : 'usuario@hse-ingenieria.com'}
                             required
                         />
                     </div>

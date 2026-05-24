@@ -1,4 +1,7 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+// Cargar .env primero, luego .env.local lo sobreescribe (para soporte de tenants)
+dotenv.config();
+dotenv.config({ path: '.env.local', override: true });
 import express from 'express';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'url';
