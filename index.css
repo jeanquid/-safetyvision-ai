@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --ensi-blue:       #003A70;
+  --ensi-blue-mid:   #005FA3;
+  --ensi-blue-light: #E8F1F9;
+  --ensi-gray:       #4A5568;
+  --ensi-gray-light: #F7F9FC;
+  --ensi-white:      #FFFFFF;
+  --ensi-accent:     #F5A623;
+  --ensi-red:        #C62828;
+  --ensi-green:      #2E7D52;
+}
+
 @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }

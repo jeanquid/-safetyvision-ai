@@ -4,7 +4,11 @@ import { getPhoto } from './_storage.js';
 import db from './_db.js';
 
 // ── Colores ───────────────────────────────────────────────────────────────────
-const HSE_GREEN  = '#16a34a';
+const HSE_GREEN   = '#16a34a';
+const ENSI_BLUE   = '#003A70';
+const ENSI_ACCENT = '#005FA3';
+const IS_ENSI_PDF = process.env.TENANT === 'ensi';
+const BRAND_COLOR = IS_ENSI_PDF ? ENSI_BLUE : HSE_GREEN;
 const RISK_COLORS: Record<string, { text: string; bg: string; label: string }> = {
     alto:  { text: '#991b1b', bg: '#fee2e2', label: 'ALTO'  },
     medio: { text: '#92400e', bg: '#fef3c7', label: 'MEDIO' },
@@ -34,11 +38,11 @@ function needSpace(doc: PDFKit.PDFDocument, h: number): void {
     }
 }
 
-/** Dibuja un encabezado de sección verde */
+/** Dibuja un encabezado de sección con color de brand */
 function sectionTitle(doc: PDFKit.PDFDocument, title: string): void {
     needSpace(doc, 30);
     const y = doc.y;
-    doc.rect(M, y, CW, 22).fill(HSE_GREEN);
+    doc.rect(M, y, CW, 22).fill(BRAND_COLOR);
     doc.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff')
        .text(title, M + 10, y + 6, { width: CW - 20 });
     doc.fillColor('#000000');
@@ -95,25 +99,43 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
         doc.on('error', reject);
 
         // ═══════════════════════════════════════════════════════════════════
-        // HEADER (banda verde)
+        // HEADER
         // ═══════════════════════════════════════════════════════════════════
-        doc.rect(0, 0, PAGE_W, 70).fill(HSE_GREEN);
-        doc.circle(M + 20, 35, 20).fill('#ffffff');
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(HSE_GREEN)
-           .text('hse', M + 8, 30, { width: 24, align: 'center' });
-        doc.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff')
-           .text('HSE INGENIERIA', M + 50, 18);
-        doc.font('Helvetica').fontSize(8).fillColor('rgba(255,255,255,0.75)')
-           .text('Seguridad e Higiene Industrial', M + 50, 40);
-        doc.font('Helvetica').fontSize(7).fillColor('rgba(255,255,255,0.6)')
-           .text('Powered by SafetyVision AI · Nodo8', 0, 55, { align: 'right', width: PAGE_W - M });
+        doc.rect(0, 0, PAGE_W, 70).fill(BRAND_COLOR);
+        if (IS_ENSI_PDF) {
+            // Rectángulo con texto ENSI
+            doc.rect(M, 18, 54, 22).fill('#ffffff');
+            doc.font('Helvetica-Bold').fontSize(14).fillColor(ENSI_BLUE)
+               .text('ENSI', M + 3, 23, { width: 48, align: 'center' });
+            doc.font('Helvetica-Bold').fontSize(16).fillColor('#ffffff')
+               .text('ENSI SafetyField', M + 65, 16);
+            doc.font('Helvetica').fontSize(8).fillColor('rgba(255,255,255,0.75)')
+               .text('Empresa Neuquina de Servicios de Ingeniería S.E.', M + 65, 37);
+            doc.font('Helvetica').fontSize(7).fillColor('rgba(255,255,255,0.6)')
+               .text('Powered by SafetyVision AI · Nodo8', 0, 55, { align: 'right', width: PAGE_W - M });
+        } else {
+            doc.circle(M + 20, 35, 20).fill('#ffffff');
+            doc.font('Helvetica-Bold').fontSize(10).fillColor(HSE_GREEN)
+               .text('hse', M + 8, 30, { width: 24, align: 'center' });
+            doc.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff')
+               .text('HSE INGENIERIA', M + 50, 18);
+            doc.font('Helvetica').fontSize(8).fillColor('rgba(255,255,255,0.75)')
+               .text('Seguridad e Higiene Industrial', M + 50, 40);
+            doc.font('Helvetica').fontSize(7).fillColor('rgba(255,255,255,0.6)')
+               .text('Powered by SafetyVision AI · Nodo8', 0, 55, { align: 'right', width: PAGE_W - M });
+        }
 
         // ═══════════════════════════════════════════════════════════════════
         // TÍTULO
         // ═══════════════════════════════════════════════════════════════════
         doc.y = 85;
         doc.font('Helvetica-Bold').fontSize(14).fillColor('#0f172a')
-           .text('ACTA DE INSPECCIÓN DE SEGURIDAD', M, doc.y, { align: 'center', width: CW });
+           .text(IS_ENSI_PDF ? 'ACTA DE INSPECCIÓN DE CAMPO' : 'ACTA DE INSPECCIÓN DE SEGURIDAD', M, doc.y, { align: 'center', width: CW });
+        if (IS_ENSI_PDF) {
+            doc.moveDown(0.15);
+            doc.font('Helvetica').fontSize(8).fillColor(GRAY_TEXT)
+               .text('Registro de Seguridad e Higiene Laboral — Sector O&G', M, doc.y, { align: 'center', width: CW });
+        }
         doc.moveDown(0.3);
         const fecha = new Date(inspection.createdAt).toLocaleDateString('es-AR', {
             day: '2-digit', month: 'long', year: 'numeric'
@@ -281,7 +303,7 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
         doc.save();
         doc.rect(sx, fy, 180, 60).dash(3, { space: 3 }).stroke('#94a3b8');
         doc.restore();
-        doc.font('Helvetica-Bold').fontSize(7).fillColor(HSE_GREEN)
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(BRAND_COLOR)
            .text('SELLO', sx + 10, fy + 8);
         const selloLines: string[] = [];
         if (sig?.title) selloLines.push(sig.title);
@@ -292,7 +314,7 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
                .text(line, sx + 10, fy + 20 + (j * 13), { width: 160 });
         });
         doc.font('Helvetica').fontSize(7).fillColor(GRAY_TEXT)
-           .text('HSE Ingeniería', sx + 10, fy + 48);
+           .text(IS_ENSI_PDF ? 'ENSI S.E.' : 'HSE Ingeniería', sx + 10, fy + 48);
 
         // ═══════════════════════════════════════════════════════════════════
         // FOOTER en todas las páginas
@@ -305,17 +327,31 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
             // Limpiar zona de footer
             doc.rect(0, PAGE_H - 36, PAGE_W, 36).fill('#f1f5f9');
             doc.moveTo(0, PAGE_H - 36).lineTo(PAGE_W, PAGE_H - 36).stroke(GRAY_LINE);
-            doc.font('Helvetica').fontSize(7).fillColor(GRAY_TEXT)
-               .text(
-                   `Generado el ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })} · HSE Ingeniería`,
-                   M, PAGE_H - 23
-               );
-            doc.font('Helvetica').fontSize(7).fillColor(GRAY_TEXT)
-               .text(
-                   `Página ${i + 1} de ${total}   ·   SafetyVision AI · Nodo8`,
-                   0, PAGE_H - 23,
-                   { align: 'right', width: PAGE_W - M }
-               );
+            if (IS_ENSI_PDF) {
+                doc.font('Helvetica').fontSize(7).fillColor(GRAY_TEXT)
+                   .text(
+                       `ENSI S.E. · Ruta 237 – Km. 1278, Arroyito, Neuquén · Reg. Prov. N° 109/20 · IRAM 301-ISO 17025`,
+                       M, PAGE_H - 23
+                   );
+                doc.font('Helvetica').fontSize(7).fillColor(GRAY_TEXT)
+                   .text(
+                       `Página ${i + 1} de ${total}   ·   Generado por SafetyField · Powered by Nodo8`,
+                       0, PAGE_H - 23,
+                       { align: 'right', width: PAGE_W - M }
+                   );
+            } else {
+                doc.font('Helvetica').fontSize(7).fillColor(GRAY_TEXT)
+                   .text(
+                       `Generado el ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })} · HSE Ingeniería`,
+                       M, PAGE_H - 23
+                   );
+                doc.font('Helvetica').fontSize(7).fillColor(GRAY_TEXT)
+                   .text(
+                       `Página ${i + 1} de ${total}   ·   SafetyVision AI · Nodo8`,
+                       0, PAGE_H - 23,
+                       { align: 'right', width: PAGE_W - M }
+                   );
+            }
         }
 
         doc.end();

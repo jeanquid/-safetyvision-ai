@@ -1,6 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Camera, Upload, Loader2, AlertTriangle, CheckCircle, Send, FileText, Building2, HardHat, Factory, Construction, Lightbulb, BarChart3, X, Check } from 'lucide-react';
+import { IS_ENSI, ENSI_BRAND } from '../lib/config';
+
+const ENSI_CATEGORIES = [
+    'Perforación y completación',
+    'Transporte y logística',
+    'Instalaciones eléctricas',
+    'Manejo de sustancias peligrosas',
+    'Trabajo en altura',
+    'Espacios confinados',
+    'Mediciones ambientales',
+];
 
 const RISK_META: Record<string, { color: string; bg: string; label: string }> = {
     alto: { color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', label: 'ALTO' },
@@ -252,8 +263,14 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
         return (
             <div className="max-w-xl mx-auto space-y-6">
                 <div className="text-center">
-                    <h2 className="text-xl font-bold text-white">Nueva Inspección</h2>
-                    <p className="text-slate-500 text-sm mt-1">Realizar relevamiento de seguridad</p>
+                    <h2 className="text-xl font-bold text-white">
+                        {IS_ENSI ? 'Nueva Inspección de Campo' : 'Nueva Inspección'}
+                    </h2>
+                    <p className="text-slate-500 text-sm mt-1">
+                        {IS_ENSI
+                            ? 'Subí una foto del puesto de trabajo o instalación a inspeccionar'
+                            : 'Realizar relevamiento de seguridad'}
+                    </p>
                 </div>
 
                 {error && (
@@ -331,13 +348,30 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                 </div>
 
                 <textarea value={description} onChange={e => setDescription(e.target.value)}
-                    placeholder="Descripción adicional de la situación observada..."
+                    placeholder={IS_ENSI
+                        ? 'Ej: Equipo de perforación Nro. 3 · Sector andamio · Turno mañana · Operario sin arnés detectado visualmente'
+                        : 'Descripción adicional de la situación observada...'}
                     rows={3}
                     className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 resize-none shadow-inner" />
 
+                {IS_ENSI && (
+                    <div>
+                        <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Categoría de riesgo O&amp;G</label>
+                        <select className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                            <option value="">Seleccionar categoría...</option>
+                            {ENSI_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        </select>
+                    </div>
+                )}
+
                 <button onClick={handleAnalyze} disabled={!companyId || (!imageBase64 && !description)}
-                    className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20">
-                    <Send className="w-4 h-4" /> Enviar a Gemini AI
+                    className="w-full py-4 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                    style={!(!companyId || (!imageBase64 && !description)) ? { backgroundColor: IS_ENSI ? ENSI_BRAND.primaryColor : '#2563eb', boxShadow: `0 10px 15px -3px ${IS_ENSI ? 'rgba(0,58,112,0.3)' : 'rgba(37,99,235,0.2)'}` } : undefined}
+                    onMouseEnter={e => { if (!(!companyId || (!imageBase64 && !description))) (e.currentTarget as HTMLButtonElement).style.backgroundColor = IS_ENSI ? ENSI_BRAND.accentColor : '#3b82f6'; }}
+                    onMouseLeave={e => { if (!(!companyId || (!imageBase64 && !description))) (e.currentTarget as HTMLButtonElement).style.backgroundColor = IS_ENSI ? ENSI_BRAND.primaryColor : '#2563eb'; }}
+                >
+                    <Send className="w-4 h-4" />
+                    {IS_ENSI ? 'Analizar inspección' : 'Enviar a Gemini AI'}
                 </button>
             </div>
         );

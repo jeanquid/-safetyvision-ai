@@ -76,10 +76,31 @@ export async function validateImage(
     return { valid: true, reason: 'Validation skipped' };
 }
 
-const SYSTEM_PROMPT = `Eres un experto en seguridad e higiene industrial certificado.
+const DEFAULT_SAFETY_CONTEXT = `Eres un experto en seguridad e higiene industrial certificado.
 Analizar la imagen y detectar riesgos de seguridad.
 Respondé ÚNICAMENTE con un JSON válido:
 { "risks": [ { "category": "...", "description": "...", "level": "...", "confidence": 85, "recommendation": "..." } ] }`;
+
+const ENSI_SAFETY_CONTEXT = `Eres el asistente de inspecciones de ENSI S.E., empresa
+especializada en servicios de ingeniería para la industria petrolera y
+gasífera de Neuquén. Las inspecciones se realizan en yacimientos,
+plantas y pozos de Vaca Muerta y otras zonas de la Patagonia.
+Los riesgos más frecuentes en este contexto son:
+- Trabajo en altura sin arnés (perforaciones, equipos)
+- Ausencia de EPP específico O&G (casco, antiparras, guantes resistentes)
+- Exposición a gases (H2S, CH4, SO2) — requiere detector personal
+- Herramientas o equipos sin bloqueo LOTO
+- Vehículos en movimiento sin señalización
+- Condiciones eléctricas inseguras en instalaciones de campo
+Clasificar siempre según Ley 19.587 / Decreto 351/79 y resoluciones SRT.
+Respondé ÚNICAMENTE con un JSON válido:
+{ "risks": [ { "category": "...", "description": "...", "level": "...", "confidence": 85, "recommendation": "..." } ] }`;
+
+function getSystemPrompt(): string {
+    return process.env.TENANT === 'ensi' ? ENSI_SAFETY_CONTEXT : DEFAULT_SAFETY_CONTEXT;
+}
+
+const SYSTEM_PROMPT = DEFAULT_SAFETY_CONTEXT;
 
 export async function analyzeImageWithGemini(
     imageBase64: string,
@@ -98,7 +119,7 @@ export async function analyzeImageWithGemini(
                 logger.info('ai', `Trying ${provider}:${modelName}`);
                 const contextInfo = context ? `\nContexto: Planta "${context.plant}", Sector "${context.sector}"` : '';
                 const result = await (model as any).generateContent([
-                    { text: SYSTEM_PROMPT + contextInfo },
+                    { text: getSystemPrompt() + contextInfo },
                     { inlineData: { mimeType: mimeType || 'image/jpeg', data: imageBase64 } }
                 ]);
 
@@ -133,7 +154,7 @@ export async function analyzeTextDescription(
     context?: { plant?: string; sector?: string }
 ): Promise<{ risks: DetectedRisk[]; model: string; rawResponse: string }> {
     const safeDescription = sanitizeInput(description);
-    const prompt = `${SYSTEM_PROMPT}\nSituación: "${safeDescription}"`;
+    const prompt = `${getSystemPrompt()}\nSituación: "${safeDescription}"`;
     let lastError: Error | null = null;
     const providers: ('vertex' | 'studio')[] = ['vertex', 'studio'];
 

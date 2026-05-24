@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { LayoutDashboard, Camera, ClipboardList, LogOut, Menu, X, Users, Building2, ChevronRight, CalendarDays } from 'lucide-react';
+import { IS_ENSI, ENSI_BRAND } from '../lib/config';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -31,20 +32,36 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
             {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
             {/* Sidebar */}
-            <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-800 transform transition-transform duration-200
+            <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 border-r transform transition-transform duration-200
+                ${IS_ENSI ? 'border-blue-900' : 'border-slate-800'}
+                ${IS_ENSI ? 'bg-[#002a52]' : 'bg-slate-900'}
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
                 <div className="h-full flex flex-col">
-                    <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+                    <div className={`p-5 border-b flex items-center justify-between ${IS_ENSI ? 'border-blue-900' : 'border-slate-800'}`}>
                         <div className="flex items-center gap-2.5">
-                            {/* Isotipo HSE */}
-                            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                                style={{ backgroundColor: '#16a34a' }}>
-                                <span className="text-white font-black text-[11px] tracking-tight leading-none">hse</span>
-                            </div>
-                            <div>
-                                <div className="font-black text-sm leading-tight text-white tracking-wide uppercase">HSE INGENIERIA</div>
-                                <div className="text-[9px] text-slate-500 tracking-wider font-medium">SafetyVision · Nodo8</div>
-                            </div>
+                            {IS_ENSI ? (
+                                <div className="flex items-center gap-3">
+                                    <div className="px-2.5 py-1 rounded font-bold text-white text-base tracking-widest"
+                                         style={{ backgroundColor: ENSI_BRAND.primaryColor }}>
+                                        ENSI
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-sm text-white">SafetyField</span>
+                                        <span className="text-[9px] text-blue-300">Inspecciones O&amp;G · Neuquén</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                                        style={{ backgroundColor: '#16a34a' }}>
+                                        <span className="text-white font-black text-[11px] tracking-tight leading-none">hse</span>
+                                    </div>
+                                    <div>
+                                        <div className="font-black text-sm leading-tight text-white tracking-wide uppercase">HSE INGENIERIA</div>
+                                        <div className="text-[9px] text-slate-500 tracking-wider font-medium">SafetyVision · Nodo8</div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400"><X size={20} /></button>
                     </div>
@@ -61,10 +78,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
                                     disabled={disabled}
                                     className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                                         active
-                                            ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
+                                            ? IS_ENSI
+                                                ? 'bg-white/10 text-white border border-white/20'
+                                                : 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
                                             : disabled
                                                 ? 'opacity-30 cursor-not-allowed grayscale'
-                                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                                : IS_ENSI
+                                                    ? 'text-blue-200 hover:bg-white/10 hover:text-white'
+                                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                                     }`}>
                                     <Icon size={18} />
                                     <span>{item.label}</span>
@@ -93,29 +114,41 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
 
             {/* Main */}
             <main className="flex-1 flex flex-col overflow-hidden">
-                <header className="flex items-center h-14 px-4 lg:px-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur-xl">
+                <header className={`flex items-center h-14 px-4 lg:px-6 border-b backdrop-blur-xl
+                    ${IS_ENSI
+                        ? 'border-[#005FA3] text-white'
+                        : 'border-slate-800 bg-slate-900/50'}`}
+                    style={IS_ENSI ? { backgroundColor: ENSI_BRAND.primaryColor, borderBottomWidth: 3, borderBottomColor: ENSI_BRAND.accentColor } : undefined}>
                     <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-slate-400 mr-4"><Menu size={20} /></button>
                     
                     <div className="flex items-center gap-2 overflow-hidden">
                         {user?.role !== 'admin' ? (
                             <>
-                                <button 
+                                <button
                                     onClick={() => onNavigate('companies')}
-                                    className={`text-xs font-bold transition-colors ${currentView === 'companies' ? 'text-white' : 'text-slate-500 hover:text-white'}`}
+                                    className={`text-xs font-bold transition-colors ${
+                                        currentView === 'companies'
+                                            ? 'text-white'
+                                            : IS_ENSI ? 'text-blue-200 hover:text-white' : 'text-slate-500 hover:text-white'
+                                    }`}
                                 >
                                     EMPRESAS
                                 </button>
                                 {selectedCompanyName && (
                                     <>
-                                        <ChevronRight className="w-3 h-3 text-slate-700 shrink-0" />
-                                        <span className={`text-xs font-bold uppercase tracking-wider truncate ${currentView === 'dashboard' ? 'text-white' : 'text-blue-400'}`}>
+                                        <ChevronRight className={`w-3 h-3 shrink-0 ${IS_ENSI ? 'text-blue-300' : 'text-slate-700'}`} />
+                                        <span className={`text-xs font-bold uppercase tracking-wider truncate ${
+                                            currentView === 'dashboard'
+                                                ? 'text-white'
+                                                : IS_ENSI ? 'text-blue-200' : 'text-blue-400'
+                                        }`}>
                                             {selectedCompanyName}
                                         </span>
                                     </>
                                 )}
                                 {currentView !== 'companies' && currentView !== 'dashboard' && (
                                     <>
-                                        <ChevronRight className="w-3 h-3 text-slate-700 shrink-0" />
+                                        <ChevronRight className={`w-3 h-3 shrink-0 ${IS_ENSI ? 'text-blue-300' : 'text-slate-700'}`} />
                                         <span className="text-xs font-bold text-white uppercase tracking-wider">
                                             {currentView === 'new' ? 'NUEVA INSPECCIÓN'
                                             : currentView === 'new_company' ? 'NUEVA EMPRESA'
