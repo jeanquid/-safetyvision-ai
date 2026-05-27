@@ -79,6 +79,7 @@ interface Props {
 export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }) => {
     const { authFetch, user } = useAuth();
     const fileRef = useRef<HTMLInputElement>(null);
+    const galleryRef = useRef<HTMLInputElement>(null);
 
     const [step, setStep] = useState<'form' | 'analyzing' | 'results'>('form');
     const [companyId, setCompanyId] = useState(selectedCompanyId || '');
@@ -329,6 +330,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
 
                 <div>
                     <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
+                    <input ref={galleryRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
                     {imagePreview ? (
                         <div className="relative rounded-xl overflow-hidden border border-slate-700">
                             <img src={imagePreview} alt="preview" className="w-full max-h-64 object-cover" />
@@ -338,11 +340,19 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                             </button>
                         </div>
                     ) : (
-                        <div onClick={() => fileRef.current?.click()}
-                            className="border-2 border-dashed border-blue-500/30 rounded-xl p-10 text-center cursor-pointer hover:border-blue-500/60 hover:bg-blue-500/5 transition-colors">
-                            <Camera className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                            <div className="text-blue-400 font-semibold text-sm">Capturar riesgo laboral</div>
-                            <div className="text-slate-500 text-xs mt-1">Tocá para iniciar cámara</div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div onClick={() => fileRef.current?.click()}
+                                className="border-2 border-dashed border-blue-500/30 rounded-xl p-6 text-center cursor-pointer hover:border-blue-500/60 hover:bg-blue-500/5 transition-colors">
+                                <Camera className="w-7 h-7 text-blue-400 mx-auto mb-2" />
+                                <div className="text-blue-400 font-semibold text-sm">Tomar foto</div>
+                                <div className="text-slate-500 text-xs mt-1">Usar cámara</div>
+                            </div>
+                            <div onClick={() => galleryRef.current?.click()}
+                                className="border-2 border-dashed border-purple-500/30 rounded-xl p-6 text-center cursor-pointer hover:border-purple-500/60 hover:bg-purple-500/5 transition-colors">
+                                <Upload className="w-7 h-7 text-purple-400 mx-auto mb-2" />
+                                <div className="text-purple-400 font-semibold text-sm">Subir imagen</div>
+                                <div className="text-slate-500 text-xs mt-1">Desde galería o archivo</div>
+                            </div>
                         </div>
                     )}
                 </div>
