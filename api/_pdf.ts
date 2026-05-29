@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import { InspectionState } from './_types.js';
 import { getPhoto } from './_storage.js';
 import db from './_db.js';
+import { qrcodegen } from './_inspections/qrcodegen.js';
 
 // ── Colores ───────────────────────────────────────────────────────────────────
 const HSE_GREEN   = '#16a34a';
@@ -79,7 +80,25 @@ async function getSignature(name: string, tid: string) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-export async function generateInspectionPDF(inspection: InspectionState): Promise<Buffer> {
+export async function generateInspectionPDF(inspection: InspectionState, host?: string): Promise<Buffer> {
+    // Buscar publicId si la inspección tiene una constancia de validez
+    let publicId: string | undefined;
+    try {
+        const complianceRes = await db.query(
+            'SELECT public_id FROM compliance_records WHERE inspection_id = $1',
+            [inspection.inspectionId]
+        );
+        if (complianceRes.rows.length > 0) {
+            publicId = complianceRes.rows[0].public_id;
+        } else if (inspection.status === 'closed') {
+            const { ensureComplianceRecord } = await import('./_inspections/compliance.js');
+            const lastSeal = inspection.auditTrail.length > 0
+                ? inspection.auditTrail[inspection.auditTrail.length - 1].seal
+                : '0000000000000000000000000000000000000000000000000000000000000000';
+            publicId = await ensureComplianceRecord(inspection.inspectionId, inspection.tenantId, lastSeal);
+        }
+    } catch {}
+
     // Resolver foto
     let photoBuffer: Buffer | null = null;
     if (inspection.photoUrl?.startsWith('photo:')) {
@@ -291,17 +310,17 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
         const fy = doc.y;
 
         // Caja firma
-        doc.rect(M, fy, 200, 60).stroke(GRAY_LINE);
-        doc.moveTo(M + 10, fy + 30).lineTo(M + 190, fy + 30).stroke(GRAY_LINE);
+        doc.rect(M, fy, 160, 60).stroke(GRAY_LINE);
+        doc.moveTo(M + 10, fy + 30).lineTo(M + 150, fy + 30).stroke(GRAY_LINE);
         doc.font('Helvetica').fontSize(7).fillColor(GRAY_TEXT)
            .text('Firma', M + 10, fy + 32);
         doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a')
-           .text(sig?.fullName || inspection.operator, M + 10, fy + 44, { width: 180 });
+           .text(sig?.fullName || inspection.operator, M + 10, fy + 44, { width: 140 });
 
         // Caja sello
-        const sx = M + 220;
+        const sx = M + 175;
         doc.save();
-        doc.rect(sx, fy, 180, 60).dash(3, { space: 3 }).stroke('#94a3b8');
+        doc.rect(sx, fy, 160, 60).dash(3, { space: 3 }).stroke('#94a3b8');
         doc.restore();
         doc.font('Helvetica-Bold').fontSize(7).fillColor(BRAND_COLOR)
            .text('SELLO', sx + 10, fy + 8);
@@ -311,10 +330,47 @@ export async function generateInspectionPDF(inspection: InspectionState): Promis
         if (selloLines.length === 0) selloLines.push('Inspector de Seguridad');
         selloLines.forEach((line, j) => {
             doc.font('Helvetica').fontSize(8).fillColor('#0f172a')
-               .text(line, sx + 10, fy + 20 + (j * 13), { width: 160 });
+               .text(line, sx + 10, fy + 20 + (j * 13), { width: 140 });
         });
         doc.font('Helvetica').fontSize(7).fillColor(GRAY_TEXT)
            .text(IS_ENSI_PDF ? 'ENSI S.E.' : 'HSE Ingeniería', sx + 10, fy + 48);
+
+        // Caja QR de Verificación
+        const qrx = M + 350;
+        doc.rect(qrx, fy, 145, 60).stroke(GRAY_LINE);
+        doc.font('Helvetica-Bold').fontSize(6).fillColor(BRAND_COLOR)
+           .text('VERIFICACIÓN DIGITAL', qrx + 6, fy + 8, { width: 85 });
+
+        if (publicId) {
+            doc.font('Helvetica').fontSize(5).fillColor(GRAY_TEXT)
+               .text('Acta digital inmutable firmada en conformidad con la Res. SRT 48/2025.', qrx + 6, fy + 16, { width: 85 });
+            doc.font('Helvetica-Bold').fontSize(5).fillColor(GRAY_TEXT)
+               .text(`ID: ${publicId.substring(0, 12)}...`, qrx + 6, fy + 48, { width: 85 });
+
+            const appHost = host || process.env.APP_HOST || 'safetyfield.ensi.com.ar';
+            const url = `https://${appHost}/verify/${publicId}`;
+            try {
+                const qr = qrcodegen.QrCode.encodeText(url, qrcodegen.QrCode.Ecc.MEDIUM);
+                const qrSize = qr.size;
+                const moduleSize = 42 / qrSize; // QR code fits in 42x42 pt
+                const qrStartX = qrx + 95;
+                const qrStartY = fy + 9;
+
+                doc.fillColor('#000000');
+                for (let y = 0; y < qrSize; y++) {
+                    for (let x = 0; x < qrSize; x++) {
+                        if (qr.getModule(x, y)) {
+                            doc.rect(qrStartX + x * moduleSize, qrStartY + y * moduleSize, moduleSize, moduleSize).fill();
+                        }
+                    }
+                }
+            } catch (qrErr) {
+                // No-op
+            }
+        } else {
+            doc.font('Helvetica').fontSize(5).fillColor(GRAY_TEXT)
+               .text('Constancia digital de validez disponible al cerrar la inspección.', qrx + 6, fy + 16, { width: 133 });
+        }
 
         // ═══════════════════════════════════════════════════════════════════
         // FOOTER en todas las páginas

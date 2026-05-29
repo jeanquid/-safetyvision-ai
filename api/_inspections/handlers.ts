@@ -6,6 +6,7 @@ import { analyzeImageWithGemini, analyzeTextDescription, validateImage } from '.
 import { notifyAlert } from '../_notify.js';
 import { DetectedRisk, deriveInspectionStatus, deriveTaskStatus } from '../_types.js';
 import { logger } from '../_logger.js';
+import { v4 as uuidv4 } from 'uuid';
 
 /** POST /api/inspections/analyze — AI image/text analysis */
 export const analyzeHandler = async (req: Request, res: Response) => {
@@ -74,9 +75,27 @@ export const createHandler = async (req: Request, res: Response) => {
             history: [],
         }));
 
+        const inspectionId = uuidv4();
+        let photoId: string | undefined;
+        let photoHash: string | undefined;
+        let finalPhotoUrl = photoUrl;
+
+        if (req.body.imageBase64) {
+            const saved = await savePhoto(
+                inspectionId,
+                req.body.imageBase64,
+                req.body.mimeType || 'image/jpeg'
+            );
+            photoId = saved.photoId;
+            photoHash = saved.hash;
+            finalPhotoUrl = `photo:${photoId}`;
+        }
+
         const inspection = await createInspection({
+            inspectionId,
             tenantId: user.tenantId,
             userId: user.userId,
+            userEmail: user.email,
             companyId,
             companyName,
             plant,
@@ -85,7 +104,8 @@ export const createHandler = async (req: Request, res: Response) => {
             risks: enrichedRisks,
             task,
             aiAnalysis,
-            photoUrl,
+            photoUrl: finalPhotoUrl,
+            photoHash,
         });
 
         const hasHigh = enrichedRisks.some((r: DetectedRisk) => r.level === 'alto');
@@ -99,21 +119,6 @@ export const createHandler = async (req: Request, res: Response) => {
                 accion: task.action,
                 responsable: task.responsible,
                 plazo: task.deadline,
-            });
-        }
-
-        let photoId: string | undefined;
-        if (req.body.imageBase64) {
-            photoId = await savePhoto(
-                inspection.inspectionId,
-                req.body.imageBase64,
-                req.body.mimeType || 'image/jpeg'
-            );
-        }
-
-        if (photoId) {
-            await updateInspection(inspection.inspectionId, (ins) => {
-                ins.photoUrl = `photo:${photoId}`;
             });
         }
 

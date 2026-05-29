@@ -31,6 +31,12 @@ import {
     updateScheduleHandler,
     deleteScheduleHandler
 } from './_schedules.js';
+import {
+    verifyHandler,
+    exportHandler,
+    exportCompanyHandler,
+    publicVerifyHandler
+} from './_inspections/compliance.js';
 
 export async function createApiApp() {
     const app = express();
@@ -143,11 +149,18 @@ export async function createApiApp() {
     insRouter.post('/create', safeAuth, createHandler);
     insRouter.get('/list', safeAuth, listHandler);
     insRouter.get('/:id', safeAuth, getHandler);
+    insRouter.get('/:id/verify', safeAuth, verifyHandler);
+    insRouter.get('/:id/export', safeAuth, exportHandler);
     insRouter.patch('/:id/risks/:riskId', safeAuth, updateRiskHandler);
     insRouter.post('/:id/update-task', safeAuth, updateTaskHandler);
     insRouter.delete('/:id', safeAuth, deleteHandler);
     app.use('/api/inspections', insRouter);
     app.use('/inspections', insRouter);
+
+    // ── Public Compliance Verification ──
+    app.get('/api/verify/:publicId', publicVerifyHandler);
+    app.get('/verify/:publicId', publicVerifyHandler);
+
 
     // ── Photo Serving ──
     app.get('/api/photos/:id', safeAuth, async (req, res) => {
@@ -174,7 +187,8 @@ export async function createApiApp() {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
-            const pdf = await generateInspectionPDF(inspection);
+            const host = req.headers.host || 'safetyfield.ensi.com.ar';
+            const pdf = await generateInspectionPDF(inspection, host);
 
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader(
@@ -263,6 +277,9 @@ export async function createApiApp() {
             res.status(500).json({ error: error.message });
         }
     });
+
+    // Exportar todas las inspecciones de una empresa (CSV/JSON)
+    companyRouter.get('/:companyId/export', safeAuth, exportCompanyHandler);
 
     // Obtener empresa por ID (con detalle)
     companyRouter.get('/:id', safeAuth, async (req, res) => {

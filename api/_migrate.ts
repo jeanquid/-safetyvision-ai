@@ -58,10 +58,43 @@ async function migrate() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await db.query(`
+            ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_hash TEXT;
+        `);
         await db.query(
             `CREATE INDEX IF NOT EXISTS idx_photos_inspection ON photos(inspection_id);`
         );
         console.log('✅ Table "photos" OK.');
+
+        console.log('--- Creating table: compliance_records ---');
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS compliance_records (
+                id UUID PRIMARY KEY,
+                inspection_id UUID REFERENCES inspections(inspection_id) ON DELETE CASCADE,
+                public_id TEXT UNIQUE NOT NULL,
+                closing_hash TEXT NOT NULL,
+                chain_valid BOOLEAN NOT NULL DEFAULT TRUE,
+                issued_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                tenant_id TEXT NOT NULL
+            );
+        `);
+        console.log('✅ Table "compliance_records" OK.');
+
+        console.log('--- Creating table: audit_access_logs ---');
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS audit_access_logs (
+                id UUID PRIMARY KEY,
+                user_id UUID,
+                email TEXT,
+                role TEXT,
+                inspection_id UUID,
+                action_performed TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('✅ Table "audit_access_logs" OK.');
+
 
         console.log('--- Creating table: tenants ---');
         await db.query(`

@@ -20,10 +20,14 @@ async function ensureTables() {
         await db.query('SELECT 1 FROM audit_trail LIMIT 0');
         await db.query('SELECT 1 FROM ai_feedback LIMIT 0');
         await db.query('SELECT 1 FROM schedules LIMIT 0');
+        await db.query('SELECT 1 FROM compliance_records LIMIT 0');
+        await db.query('SELECT 1 FROM audit_access_logs LIMIT 0');
 
         // Verificar columnas añadidas por migraciones
         await db.query('SELECT full_name, assigned_companies FROM users LIMIT 0');
         await db.query('SELECT company_id FROM inspections LIMIT 0');
+        await db.query('SELECT photo_hash FROM photos LIMIT 0');
+
 
         // Si la tabla de usuarios está vacía, forzar el sembrado de usuarios por defecto
         const userCountRes = await db.query('SELECT COUNT(*) as count FROM users');
@@ -173,6 +177,9 @@ async function ensureTables() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await db.query(`
+            ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_hash TEXT;
+        `);
 
         // 6. Table: audit_trail (Intervention tracking)
         await db.query(`
@@ -226,9 +233,37 @@ async function ensureTables() {
             );
         `);
 
+        // 9. Table: compliance_records (Technical compliance constancies)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS compliance_records (
+                id UUID PRIMARY KEY,
+                inspection_id UUID REFERENCES inspections(inspection_id) ON DELETE CASCADE,
+                public_id TEXT UNIQUE NOT NULL,
+                closing_hash TEXT NOT NULL,
+                chain_valid BOOLEAN NOT NULL DEFAULT TRUE,
+                issued_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                tenant_id TEXT NOT NULL
+            );
+        `);
+
+        // 10. Table: audit_access_logs (Access logging)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS audit_access_logs (
+                id UUID PRIMARY KEY,
+                user_id UUID,
+                email TEXT,
+                role TEXT,
+                inspection_id UUID,
+                action_performed TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
         // ── Creación de índices ──
         await db.query(`CREATE INDEX IF NOT EXISTS idx_inspections_tenant ON inspections(tenant_id);`);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_inspections_plant ON inspections(plant);`);
+
         await db.query(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_photos_inspection ON photos(inspection_id);`);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_companies_tenant ON companies(tenant_id);`);

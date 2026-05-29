@@ -6,7 +6,7 @@ export type InspectionStatus = 'analyzing' | 'pending_review' | 'active' | 'clos
 export interface AuditEntry {
     id: string;
     riskId: string;
-    action: 'status_change' | 'note_added' | 'risk_edited';
+    action: 'status_change' | 'note_added' | 'risk_edited' | 'inspection_created' | 'photo_signed' | string;
     fromStatus?: TaskStatus;
     toStatus?: TaskStatus;
     note?: string;
@@ -14,9 +14,12 @@ export interface AuditEntry {
     inspectorEmail: string;
     inspectorName: string;
     timestamp: string;
-    /** SHA-256 hash of: inspectorId + action + riskId + timestamp + previousHash */
+    /** SHA-256 hash */
     seal: string;
+    photoHash?: string;
+    sealVersion?: 1 | 2;
 }
+
 
 export interface DetectedRisk {
     id: string;
@@ -91,6 +94,8 @@ export interface InspectionState {
     };
     createdAt: string;
     updatedAt: string;
+    complianceState?: 'completo' | 'con_observaciones';
+    complianceNotes?: string;
 }
 
 /**

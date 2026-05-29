@@ -2,20 +2,23 @@ import db from './_db.js';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './_logger.js';
 
+import { createHash } from 'crypto';
+
 export async function savePhoto(
     inspectionId: string,
     base64Data: string,
     mimeType: string
-): Promise<string> {
+): Promise<{ photoId: string; hash: string }> {
     const photoId = uuidv4();
+    const hash = createHash('sha256').update(base64Data).digest('hex');
 
     await db.query(
-        'INSERT INTO photos (photo_id, inspection_id, mime_type, data) VALUES ($1, $2, $3, $4)',
-        [photoId, inspectionId, mimeType, base64Data]
+        'INSERT INTO photos (photo_id, inspection_id, mime_type, data, photo_hash) VALUES ($1, $2, $3, $4, $5)',
+        [photoId, inspectionId, mimeType, base64Data, hash]
     );
 
-    logger.info('storage', 'Photo saved', { photoId, inspectionId });
-    return photoId;
+    logger.info('storage', 'Photo saved', { photoId, inspectionId, hash });
+    return { photoId, hash };
 }
 
 export async function getPhoto(photoId: string): Promise<{

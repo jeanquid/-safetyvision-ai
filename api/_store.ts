@@ -6,16 +6,114 @@ import { logger } from './_logger.js';
 /**
  * Genera un sello (hash) para una entrada de audit trail.
  * Usa SHA-256 con los campos clave + hash anterior para formar cadena.
+ * Soporta versionamiento (1 = legacy 16 chars, 2 = completo 64 chars con payload enriquecido).
  */
-async function generateSeal(entry: Omit<AuditEntry, 'seal'>, previousSeal: string): Promise<string> {
-    const payload = `${entry.inspectorId}|${entry.action}|${entry.riskId}|${entry.timestamp}|${previousSeal}`;
+export async function generateSeal(entry: Omit<AuditEntry, 'seal'>, previousSeal: string): Promise<string> {
     const { createHash } = await import('crypto');
-    return createHash('sha256').update(payload).digest('hex').substring(0, 16);
+    const version = entry.sealVersion || 2;
+    if (version === 2) {
+        const payload = `${entry.inspectorId}|${entry.action}|${entry.riskId}|${entry.fromStatus || ''}|${entry.toStatus || ''}|${entry.note || ''}|${entry.timestamp}|${entry.photoHash || ''}|${previousSeal}`;
+        return createHash('sha256').update(payload).digest('hex');
+    } else {
+        const payload = `${entry.inspectorId}|${entry.action}|${entry.riskId}|${entry.timestamp}|${previousSeal}`;
+        return createHash('sha256').update(payload).digest('hex').substring(0, 16);
+    }
+}
+
+/**
+ * Verifica la cadena de custodia y la integridad del audit trail.
+ * Detecta cualquier alteración o ruptura y tolera formatos legacy.
+ */
+export async function verifyAuditChain(
+    auditTrail: AuditEntry[],
+    tenantId: string,
+    currentPhotoHash?: string,
+    hasPhoto?: boolean
+): Promise<{ valid: boolean; brokenAt?: number; isLegacy?: boolean }> {
+    if (!auditTrail || auditTrail.length === 0) {
+        return { valid: true };
+    }
+
+    let previousSeal = '0000000000000000000000000000000000000000000000000000000000000000';
+    let isLegacy = false;
+
+    for (let i = 0; i < auditTrail.length; i++) {
+        const entry = auditTrail[i];
+        const version = entry.sealVersion || (entry.seal && entry.seal.length === 16 ? 1 : 2);
+        
+        if (version === 1) {
+            isLegacy = true;
+            const prev = previousSeal.length > 16 ? previousSeal.substring(0, 16) : previousSeal;
+            const recomputed = await generateSeal({ ...entry, sealVersion: 1 }, prev);
+            if (recomputed !== entry.seal) {
+                return { valid: false, brokenAt: i };
+            }
+        } else {
+            const prev = previousSeal;
+            const recomputed = await generateSeal({ ...entry, sealVersion: 2 }, prev);
+            if (recomputed !== entry.seal) {
+                return { valid: false, brokenAt: i };
+            }
+        }
+        previousSeal = entry.seal;
+    }
+
+    // Verificar correspondencia de la foto firmada
+    const creationEntry = auditTrail.find(e => e.action === 'inspection_created');
+    if (hasPhoto) {
+        if (!currentPhotoHash || !creationEntry || !creationEntry.photoHash) {
+            // Evidencia legacy no verificable con el esquema nuevo
+            isLegacy = true;
+        } else if (creationEntry.photoHash !== currentPhotoHash) {
+            return { valid: false, brokenAt: -1 }; // Ruptura por alteración de foto
+        }
+    }
+
+    return { valid: true, isLegacy };
+}
+
+/**
+ * Realiza comprobaciones de autocontrol sobre el estado de la inspección (Pauta 4.9).
+ * Detecta inconsistencias críticas y las reporta en complianceNotes.
+ */
+export function runAutocontrol(ins: InspectionState): { state: 'completo' | 'con_observaciones'; notes: string } {
+    const notes: string[] = [];
+
+    // Check 1: Tarea marcada como resuelta sin responsable o sin descripción de acción
+    if (ins.task.status === 'resuelto') {
+        if (!ins.task.responsible || ins.task.responsible.trim() === '') {
+            notes.push('Tarea resuelta sin responsable asignado.');
+        }
+        if (!ins.task.action || ins.task.action.trim() === '') {
+            notes.push('Tarea resuelta sin acción descripta.');
+        }
+    }
+
+    // Check 2: Riesgo de nivel 'alto' sin recomendación (acción correctiva)
+    const highRisksWithoutAction = (ins.risks || []).filter(r => r.level === 'alto' && (!r.recommendation || r.recommendation.trim() === ''));
+    if (highRisksWithoutAction.length > 0) {
+        notes.push(`Existen ${highRisksWithoutAction.length} riesgo(s) alto(s) sin recomendación de acción correctiva.`);
+    }
+
+    // Check 3: Foto sin hash (evidencia sin integridad criptográfica)
+    if (ins.photoUrl && ins.photoUrl.startsWith('photo:')) {
+        const creationEntry = ins.auditTrail.find(e => e.action === 'inspection_created');
+        if (!creationEntry || !creationEntry.photoHash) {
+            notes.push('La inspección contiene foto pero no se registró su firma hash (evidencia legacy).');
+        }
+    }
+
+    if (notes.length > 0) {
+        return { state: 'con_observaciones', notes: notes.join(' ') };
+    }
+    return { state: 'completo', notes: '' };
 }
 
 export async function createInspection(data: {
+    inspectionId?: string;
     tenantId: string;
     userId: string;
+    userEmail?: string;
     companyId: string;
     companyName?: string;
     plant: string;
@@ -25,8 +123,9 @@ export async function createInspection(data: {
     task: CorrectiveTask;
     aiAnalysis?: any;
     photoUrl?: string;
+    photoHash?: string;
 }): Promise<InspectionState> {
-    const inspectionId = uuidv4();
+    const inspectionId = data.inspectionId || uuidv4();
     const now = new Date().toISOString();
 
     const risksWithHistory = data.risks.map(r => ({
@@ -36,6 +135,25 @@ export async function createInspection(data: {
         updatedBy: data.userId,
         updatedAt: now,
     }));
+
+    // Entrada de auditoría inicial para sellado íntegro en creación
+    const initialEntry: Omit<AuditEntry, 'seal'> = {
+        id: uuidv4(),
+        riskId: 'inspection',
+        action: 'inspection_created',
+        fromStatus: undefined,
+        toStatus: undefined,
+        note: 'Inspección creada',
+        inspectorId: data.userId,
+        inspectorEmail: data.userEmail || '',
+        inspectorName: data.operator,
+        timestamp: now,
+        photoHash: data.photoHash,
+        sealVersion: 2,
+    };
+
+    const initialSeal = await generateSeal(initialEntry, '0000000000000000000000000000000000000000000000000000000000000000');
+    const sealedEntry: AuditEntry = { ...initialEntry, seal: initialSeal };
 
     const state: InspectionState = {
         inspectionId,
@@ -53,11 +171,37 @@ export async function createInspection(data: {
             ...data.task,
             status: deriveTaskStatus(risksWithHistory),
         },
-        auditTrail: [],
+        auditTrail: [sealedEntry],
         aiAnalysis: data.aiAnalysis,
         createdAt: now,
         updatedAt: now,
     };
+
+    const autocontrol = runAutocontrol(state);
+    state.complianceState = autocontrol.state;
+    state.complianceNotes = autocontrol.notes;
+
+    if (state.status === 'closed') {
+        try {
+            const { ensureComplianceRecord } = await import('./_inspections/compliance.js');
+            await ensureComplianceRecord(inspectionId, state.tenantId, initialSeal);
+        } catch (err: any) {
+            logger.error('store', 'Failed to generate compliance record on create', { error: err.message });
+        }
+    }
+
+    if (state.tenantId === 'ensi' && state.complianceState === 'con_observaciones') {
+        try {
+            const { notifyAlert } = await import('./_notify.js');
+            void notifyAlert('compliance_observaciones_detectadas', {
+                inspection_id: state.inspectionId,
+                tenant_id: state.tenantId,
+                observaciones: state.complianceNotes,
+                status: state.status
+            });
+        } catch {}
+    }
+
 
     try {
         await db.query(`
@@ -72,6 +216,7 @@ export async function createInspection(data: {
 
     return state;
 }
+
 
 export async function getInspection(inspectionId: string): Promise<InspectionState | null> {
     try {
@@ -142,7 +287,18 @@ export async function updateRiskStatus(
 
     const lastSeal = ins.auditTrail.length > 0
         ? ins.auditTrail[ins.auditTrail.length - 1].seal
-        : '0000000000000000';
+        : '0000000000000000000000000000000000000000000000000000000000000000';
+
+    let photoHash: string | undefined;
+    if (ins.photoUrl && ins.photoUrl.startsWith('photo:')) {
+        const photoId = ins.photoUrl.replace('photo:', '');
+        try {
+            const photoRes = await db.query('SELECT photo_hash FROM photos WHERE photo_id = $1', [photoId]);
+            if (photoRes.rows.length > 0) {
+                photoHash = photoRes.rows[0].photo_hash;
+            }
+        } catch {}
+    }
 
     const auditEntry: Omit<AuditEntry, 'seal'> = {
         id: uuidv4(),
@@ -155,10 +311,13 @@ export async function updateRiskStatus(
         inspectorEmail: user.email,
         inspectorName: user.displayName || user.email,
         timestamp: now,
+        photoHash,
+        sealVersion: 2,
     };
 
     const seal = await generateSeal(auditEntry, lastSeal);
     const sealedEntry: AuditEntry = { ...auditEntry, seal };
+
 
     risk.status = newStatus as any;
     risk.updatedBy = user.email;
@@ -175,6 +334,41 @@ export async function updateRiskStatus(
     if (ins.task.status === 'resuelto' && !ins.task.resolvedAt) {
         ins.task.resolvedAt = now;
         ins.task.resolvedBy = user.email;
+        /*
+         * FUTURE ANCHORING POINT (Anclaje Externo Futuro):
+         * Aquí es donde la inspección ha quedado completamente resuelta/cerrada y su cadena de custodia está completa.
+         * En este punto exacto se debería calcular el closing_hash de la inspección y enviarlo a:
+         * 1. Una Autoridad de Sellado de Tiempo (TSA conforme a RFC 3161) para obtener un timestamp provisto por un tercero de confianza.
+         * 2. O anclar el hash en una blockchain (ej. Ethereum, Bitcoin o una red regulada local de AR) publicando una transacción inmutable.
+         * Esto permitiría pasar de integridad propia (cadena interna de hashes) a integridad demostrable e inalterable ante terceros.
+         */
+    }
+
+    // Ejecutar autocontrol (Pauta 4.9)
+    const autocontrol = runAutocontrol(ins);
+    ins.complianceState = autocontrol.state;
+    ins.complianceNotes = autocontrol.notes;
+
+    if (ins.status === 'closed') {
+        const closingHash = sealedEntry.seal;
+        try {
+            const { ensureComplianceRecord } = await import('./_inspections/compliance.js');
+            await ensureComplianceRecord(inspectionId, ins.tenantId, closingHash);
+        } catch (err: any) {
+            logger.error('store', 'Failed to generate compliance record on close', { error: err.message });
+        }
+    }
+
+    if (ins.tenantId === 'ensi' && ins.complianceState === 'con_observaciones') {
+        try {
+            const { notifyAlert } = await import('./_notify.js');
+            void notifyAlert('compliance_observaciones_detectadas', {
+                inspection_id: ins.inspectionId,
+                tenant_id: ins.tenantId,
+                observaciones: ins.complianceNotes,
+                status: ins.status
+            });
+        } catch {}
     }
 
     ins.updatedAt = now;
