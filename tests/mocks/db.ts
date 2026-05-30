@@ -15,6 +15,7 @@ const mockInspections = new Map<string, any>();
 const mockCompanies   = new Map<string, any>();
 const mockSchedules   = new Map<string, any>();
 const mockComplianceRecords = new Map<string, any>();
+const mockPhotos = new Map<string, any>();
 const mockTenants = new Map<string, any>([
     ['tenant-001', { name: 'Test Tenant S.E.' }],
     ['ensi', { name: 'ENSI S.E.' }]
@@ -149,10 +150,17 @@ export const mockDb = {
 
         // ── Photos ────────────────────────────────────────────────────────────
         if (sql.includes('INSERT INTO photos')) {
+            const [photo_id, inspection_id, mime_type, data, photo_hash, width, height] = params || [];
+            mockPhotos.set(photo_id, { photo_id, inspection_id, mime_type, data, photo_hash, width, height });
             return { rows: [], rowCount: 1 };
         }
+        if (sql.includes('SELECT mime_type, data, width, height FROM photos WHERE photo_id') || sql.includes('SELECT mime_type, data FROM photos WHERE photo_id')) {
+            const row = mockPhotos.get(params?.[0]);
+            return row ? { rows: [row] } : { rows: [] };
+        }
         if (sql.includes('SELECT photo_hash FROM photos')) {
-            return { rows: [{ photo_hash: 'hash-foto-123' }] };
+            const row = mockPhotos.get(params?.[0]);
+            return row ? { rows: [{ photo_hash: row ? row.photo_hash : 'hash-foto-123' }] } : { rows: [{ photo_hash: 'hash-foto-123' }] };
         }
 
         // ── Compliance / Tenants / Logs ──────────────────────────────────────
@@ -253,6 +261,7 @@ export const mockDb = {
         mockCompanies.clear();
         mockSchedules.clear();
         mockComplianceRecords.clear();
+        mockPhotos.clear();
         mockCompanyListRows = [];
         mockScheduleListRows = [];
         mockLegalChunks = [...DEFAULT_LEGAL_CHUNKS];

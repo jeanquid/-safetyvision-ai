@@ -61,6 +61,11 @@ async function migrate() {
         await db.query(`
             ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_hash TEXT;
         `);
+        await db.query(`
+            ALTER TABLE photos
+            ADD COLUMN IF NOT EXISTS width INT,
+            ADD COLUMN IF NOT EXISTS height INT;
+        `);
         await db.query(
             `CREATE INDEX IF NOT EXISTS idx_photos_inspection ON photos(inspection_id);`
         );

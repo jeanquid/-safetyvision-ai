@@ -92,11 +92,19 @@ Respondé ÚNICAMENTE con un JSON válido con la siguiente estructura:
       "consequence": 4,
       "consequenceJustification": "...",
       "confidence": 85,
-      "recommendation": "..."
+      "recommendation": "...",
+      "bbox": {
+        "x": 0.12,
+        "y": 0.34,
+        "w": 0.25,
+        "h": 0.40,
+        "label": "Operario sin casco"
+      }
     }
   ]
 }
-Nota: "probability" y "consequence" deben ser enteros de 1 a 5 (1: muy bajo/insignificante, 5: muy alto/catastrófico). "level" debe ser derivado (bajo, medio, alto) según los cortes: score (probabilidad * consecuencia) <= 5 bajo, 6-12 medio, >=13 alto. Justifica brevemente la asignación de probabilidad y consecuencia.`;
+Nota: "probability" y "consequence" deben ser enteros de 1 a 5 (1: muy bajo/insignificante, 5: muy alto/catastrófico). "level" debe ser derivado (bajo, medio, alto) según los cortes: score (probabilidad * consecuencia) <= 5 bajo, 6-12 medio, >=13 alto. Justifica brevemente la asignación de probabilidad y consecuencia.
+Si el análisis proviene de una imagen, incluye en "bbox" (bounding box) las coordenadas normalizadas de 0 a 1 (0 es arriba/izquierda, 1 es abajo/derecha) y un "label" corto descriptivo del riesgo. Si no es una imagen o no se puede ubicar claramente, "bbox" debe ser null.`;
 
 const ENSI_SAFETY_CONTEXT = `Eres el asistente de inspecciones de ENSI S.E., empresa
 especializada en servicios de ingeniería para la industria petrolera y
@@ -122,11 +130,19 @@ Respondé ÚNICAMENTE con un JSON válido con la siguiente estructura:
       "consequence": 4,
       "consequenceJustification": "...",
       "confidence": 85,
-      "recommendation": "..."
+      "recommendation": "...",
+      "bbox": {
+        "x": 0.12,
+        "y": 0.34,
+        "w": 0.25,
+        "h": 0.40,
+        "label": "Operario sin arnés"
+      }
     }
   ]
 }
-Nota: "probability" y "consequence" deben ser enteros de 1 a 5 (1: muy bajo/insignificante, 5: muy alto/catastrófico). "level" debe ser derivado (bajo, medio, alto) según los cortes: score (probabilidad * consecuencia) <= 5 bajo, 6-12 medio, >=13 alto. Justifica brevemente la asignación de probabilidad y consecuencia.`;
+Nota: "probability" y "consequence" deben ser enteros de 1 a 5 (1: muy bajo/insignificante, 5: muy alto/catastrófico). "level" debe ser derivado (bajo, medio, alto) según los cortes: score (probabilidad * consecuencia) <= 5 bajo, 6-12 medio, >=13 alto. Justifica brevemente la asignación de probabilidad y consecuencia.
+Si el análisis proviene de una imagen, incluye en "bbox" (bounding box) las coordenadas normalizadas de 0 a 1 (0 es arriba/izquierda, 1 es abajo/derecha) y un "label" corto descriptivo del riesgo. Si no es una imagen o no se puede ubicar claramente, "bbox" debe ser null.`;
 
 function getSystemPrompt(): string {
     return process.env.TENANT === 'ensi' ? ENSI_SAFETY_CONTEXT : DEFAULT_SAFETY_CONTEXT;
@@ -138,7 +154,18 @@ export async function analyzeImageWithGemini(
     imageBase64: string,
     mimeType: string,
     context?: { plant?: string; sector?: string }
-): Promise<{ risks: DetectedRisk[]; model: string; rawResponse: string }> {
+): Promise<{ risks: DetectedRisk[]; model: string; rawResponse: string; width?: number; height?: number }> {
+    let width: number | undefined;
+    let height: number | undefined;
+    try {
+        const sharp = (await import('sharp')).default;
+        const meta = await sharp(Buffer.from(imageBase64, 'base64')).metadata();
+        width = meta.width;
+        height = meta.height;
+    } catch (e: any) {
+        logger.warn('ai', 'Failed to get image size in analyzeImageWithGemini', { error: e.message });
+    }
+
     let lastError: Error | null = null;
     const providers: ('vertex' | 'studio')[] = ['vertex', 'studio'];
 
@@ -180,6 +207,18 @@ export async function analyzeImageWithGemini(
                             consequenceJustification: r.consequenceJustification
                         };
                     }
+
+                    let bbox = null;
+                    if (r.bbox && typeof r.bbox === 'object') {
+                        const x = Math.min(1, Math.max(0, parseFloat(r.bbox.x)));
+                        const y = Math.min(1, Math.max(0, parseFloat(r.bbox.y)));
+                        const w = Math.min(1, Math.max(0, parseFloat(r.bbox.w)));
+                        const h = Math.min(1, Math.max(0, parseFloat(r.bbox.h)));
+                        const label = r.bbox.label ? String(r.bbox.label).trim() : '';
+                        if (!isNaN(x) && !isNaN(y) && !isNaN(w) && !isNaN(h)) {
+                            bbox = { x, y, w, h, label };
+                        }
+                    }
                     
                     return {
                         id: uuidv4(),
@@ -191,6 +230,7 @@ export async function analyzeImageWithGemini(
                         status: 'pendiente' as const,
                         aiModel: `${provider}:${modelName}`,
                         assessment,
+                        bbox,
                         history: [],
                     };
                 });
@@ -208,7 +248,7 @@ export async function analyzeImageWithGemini(
                     }
                 }
 
-                return { risks, model: `${provider}:${modelName}`, rawResponse: text };
+                return { risks, model: `${provider}:${modelName}`, rawResponse: text, width, height };
             } catch (err: any) {
                 logger.warn('ai', `${provider}:${modelName} failed`, { error: err.message });
                 lastError = err;
@@ -270,6 +310,7 @@ export async function analyzeTextDescription(
                         status: 'pendiente' as const,
                         aiModel: `${provider}:${modelName}`,
                         assessment,
+                        bbox: null,
                         history: [],
                     };
                 });

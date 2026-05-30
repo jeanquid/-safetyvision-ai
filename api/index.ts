@@ -27,7 +27,7 @@ async function ensureTables() {
         // Verificar columnas añadidas por migraciones
         await db.query('SELECT full_name, assigned_companies FROM users LIMIT 0');
         await db.query('SELECT company_id FROM inspections LIMIT 0');
-        await db.query('SELECT photo_hash FROM photos LIMIT 0');
+        await db.query('SELECT photo_hash, width, height FROM photos LIMIT 0');
         await db.query('SELECT assessment_stats FROM ai_feedback LIMIT 0');
 
 
@@ -180,7 +180,10 @@ async function ensureTables() {
             );
         `);
         await db.query(`
-            ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_hash TEXT;
+            ALTER TABLE photos
+            ADD COLUMN IF NOT EXISTS photo_hash TEXT,
+            ADD COLUMN IF NOT EXISTS width INT,
+            ADD COLUMN IF NOT EXISTS height INT;
         `);
 
         // 6. Table: audit_trail (Intervention tracking)

@@ -7,6 +7,8 @@ interface CompressionResult {
     originalSizeKB: number;
     compressedSizeKB: number;
     reductionPct: number;
+    width?: number;
+    height?: number;
 }
 
 /**
@@ -36,6 +38,10 @@ export async function compressImage(
             .jpeg({ quality, mozjpeg: true })
             .toBuffer();
 
+        const meta = await sharp(compressedBuffer).metadata();
+        const width = meta.width;
+        const height = meta.height;
+
         const compressedSizeKB = +(compressedBuffer.length / 1024).toFixed(1);
         const reductionPct = +((1 - compressedBuffer.length / inputBuffer.length) * 100).toFixed(1);
 
@@ -47,15 +53,27 @@ export async function compressImage(
             originalSizeKB,
             compressedSizeKB,
             reductionPct,
+            width,
+            height,
         };
     } catch (error: any) {
         logger.warn('compress', `Compression failed, using original: ${error.message}`);
+        let width: number | undefined;
+        let height: number | undefined;
+        try {
+            const inputBuffer = Buffer.from(base64Data, 'base64');
+            const meta = await sharp(inputBuffer).metadata();
+            width = meta.width;
+            height = meta.height;
+        } catch {}
         return {
             base64: base64Data,
             mimeType,
             originalSizeKB: +(Buffer.from(base64Data, 'base64').length / 1024).toFixed(1),
             compressedSizeKB: +(Buffer.from(base64Data, 'base64').length / 1024).toFixed(1),
             reductionPct: 0,
+            width,
+            height,
         };
     }
 }

@@ -56,6 +56,14 @@ export interface LegalBasis {
     relevance: number;
 }
 
+export interface BBox {
+    x: number; // 0-1 normalized
+    y: number; // 0-1 normalized
+    w: number; // 0-1 normalized
+    h: number; // 0-1 normalized
+    label: string;
+}
+
 export interface DetectedRisk {
     id: string;
     category: RiskCategory;
@@ -70,6 +78,7 @@ export interface DetectedRisk {
     aiModel?: string;
     legalBasis?: LegalBasis | null;
     assessment?: RiskAssessment;
+    bbox?: BBox | null;
 }
 
 export interface CorrectiveTask {

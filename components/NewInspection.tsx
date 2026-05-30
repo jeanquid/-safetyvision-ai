@@ -104,6 +104,10 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState('');
     const [analysisStep, setAnalysisStep] = useState(0);
+    const [imageWidth, setImageWidth] = useState<number | null>(null);
+    const [imageHeight, setImageHeight] = useState<number | null>(null);
+    const [hoveredRiskId, setHoveredRiskId] = useState<string | null>(null);
+    const [showBoxes, setShowBoxes] = useState(true);
     
     const [companies, setCompanies] = useState<any[]>([]);
     const [plants, setPlants] = useState<{ name: string; sectors: string[] }[]>([]);
@@ -223,6 +227,10 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
             setRisks(enrichedRisks);
             setOriginalRisks(JSON.parse(JSON.stringify(enrichedRisks)));
             setAiModel(data.model || 'unknown');
+            if (data.compression && data.compression.width && data.compression.height) {
+                setImageWidth(data.compression.width);
+                setImageHeight(data.compression.height);
+            }
             setStep('results');
         } catch (err: any) {
             setError(err.message);
@@ -274,6 +282,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                 body: JSON.stringify({
                     companyId, companyName, plant, sector, operator, risks, task,
                     imageBase64, mimeType,
+                    imageWidth, imageHeight,
                     aiAnalysis: { 
                         model: aiModel, 
                         analyzedAt: new Date().toISOString(),
@@ -510,12 +519,87 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                 <p className="text-slate-500 text-sm mt-1">Empresa: {companyName} · Modelo: {aiModel}</p>
             </div>
 
+            {imagePreview && (
+                <div className="space-y-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 max-w-md mx-auto">
+                    <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-400 font-medium">Evidencia Visual Anotada</span>
+                        <button
+                            type="button"
+                            onClick={() => setShowBoxes(!showBoxes)}
+                            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition-colors flex items-center gap-1"
+                        >
+                            {showBoxes ? 'Ocultar Cajas' : 'Mostrar Cajas'}
+                        </button>
+                    </div>
+
+                    <div className="relative overflow-hidden rounded-xl border border-slate-700 mx-auto select-none bg-slate-950" style={{ maxWidth: '100%' }}>
+                        <img src={imagePreview} alt="Evidencia de inspección" className="w-full h-auto block max-h-[350px] object-contain" />
+                        
+                        {showBoxes && risks.map((r, idx) => {
+                            if (!r.bbox) return null;
+                            const isHovered = hoveredRiskId === r.id;
+                            const borderColors = {
+                                alto: 'border-red-500 bg-red-500/10 text-red-200',
+                                medio: 'border-amber-500 bg-amber-500/10 text-amber-200',
+                                bajo: 'border-emerald-500 bg-emerald-500/10 text-emerald-200',
+                            };
+                            const colorClass = borderColors[r.level as 'bajo' | 'medio' | 'alto'] || borderColors.medio;
+                            const { x, y, w, h, label } = r.bbox;
+
+                            return (
+                                <div
+                                    key={r.id}
+                                    onMouseEnter={() => setHoveredRiskId(r.id)}
+                                    onMouseLeave={() => setHoveredRiskId(null)}
+                                    className={`absolute border-2 rounded transition-all duration-200 ${colorClass} ${
+                                        isHovered ? 'ring-2 ring-white scale-[1.01] border-3 z-20 shadow-lg shadow-black/50' : 'z-10'
+                                    }`}
+                                    style={{
+                                        left: `${x * 100}%`,
+                                        top: `${y * 100}%`,
+                                        width: `${w * 100}%`,
+                                        height: `${h * 100}%`,
+                                    }}
+                                >
+                                    {/* Label Badge */}
+                                    <div className="absolute -top-5 left-0 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-black/80 border border-slate-700 whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] pointer-events-none">
+                                        {label || r.description.substring(0, 15)}
+                                    </div>
+                                    
+                                    {/* Delete BBox Button */}
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setRisks(prev => {
+                                                const updated = [...prev];
+                                                updated[idx] = { ...updated[idx], bbox: null };
+                                                return updated;
+                                            });
+                                        }}
+                                        className="absolute -top-5 right-0 bg-red-600 hover:bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold"
+                                        title="Eliminar anotación"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+ 
             <div className="space-y-2">
                 {risks.map((r: any, i: number) => {
                     const meta = RISK_META[r.level] || RISK_META.medio;
                     return (
-                        <div key={i} className={`flex items-center gap-4 p-4 bg-slate-900 border rounded-xl ${meta.bg}`}
-                            style={{ borderLeftWidth: 4, borderLeftColor: r.level === 'alto' ? '#EF4444' : r.level === 'medio' ? '#F59E0B' : '#22C55E' }}>
+                        <div key={i}
+                            onMouseEnter={() => setHoveredRiskId(r.id)}
+                            onMouseLeave={() => setHoveredRiskId(null)}
+                            className={`flex items-center gap-4 p-4 bg-slate-900 border rounded-xl transition-all ${meta.bg} ${
+                                hoveredRiskId === r.id ? 'ring-2 ring-blue-500 scale-[1.005]' : ''
+                            }`}
+                            style={{ borderLeftWidth: 4, borderLeftColor: r.level === 'alto' ? '#EF4444' : r.level === 'medio' ? '#F59E0B' : '#22C55E' }}>== 'medio' ? '#F59E0B' : '#22C55E' }}>
                             <div className="w-10 h-10 rounded-lg bg-slate-800/60 border border-slate-700 flex items-center justify-center shrink-0 text-slate-300">
                                 <CategoryIcon category={r.category} />
                             </div>

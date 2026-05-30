@@ -12,6 +12,13 @@ const mockRisksResponse = JSON.stringify({
             consequenceJustification: 'Golpes graves en la cabeza',
             confidence: 92,
             recommendation: 'Proveer casco certificado y verificar uso obligatorio',
+            bbox: {
+                x: 0.1,
+                y: 0.2,
+                w: 0.3,
+                h: 0.4,
+                label: 'Operario sin casco'
+            }
         },
         {
             category: 'condiciones',
@@ -23,6 +30,13 @@ const mockRisksResponse = JSON.stringify({
             consequenceJustification: 'Caídas del mismo nivel',
             confidence: 85,
             recommendation: 'Canalizar cableado con bandejas portacables',
+            bbox: {
+                x: 0.5,
+                y: 0.6,
+                w: 0.2,
+                h: 0.2,
+                label: 'Cables'
+            }
         },
     ],
 });

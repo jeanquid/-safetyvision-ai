@@ -7,6 +7,7 @@ import { notifyAlert } from '../_notify.js';
 import { DetectedRisk, deriveInspectionStatus, deriveTaskStatus } from '../_types.js';
 import { logger } from '../_logger.js';
 import { v4 as uuidv4 } from 'uuid';
+import db from '../_db.js';
 
 /** POST /api/inspections/analyze — AI image/text analysis */
 export const analyzeHandler = async (req: Request, res: Response) => {
@@ -51,7 +52,11 @@ export const analyzeHandler = async (req: Request, res: Response) => {
             risks: result.risks,
             model: result.model,
             analyzedAt: new Date().toISOString(),
-            compression: compressionStats,
+            compression: compressionStats ? {
+                ...compressionStats,
+                width: (result as any).width,
+                height: (result as any).height,
+            } : undefined,
         });
     } catch (error: any) {
         logger.error('inspections', 'Analysis failed', { error: error.message });
@@ -63,7 +68,7 @@ export const analyzeHandler = async (req: Request, res: Response) => {
 export const createHandler = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const { companyId, companyName, plant, sector, operator, risks, task, aiAnalysis, photoUrl } = req.body;
+        const { companyId, companyName, plant, sector, operator, risks, task, aiAnalysis, photoUrl, imageWidth, imageHeight } = req.body;
 
         if (!companyId || !plant || !risks || !task) {
             return res.status(400).json({ error: 'companyId, plant, risks, and task are required' });
@@ -84,7 +89,9 @@ export const createHandler = async (req: Request, res: Response) => {
             const saved = await savePhoto(
                 inspectionId,
                 req.body.imageBase64,
-                req.body.mimeType || 'image/jpeg'
+                req.body.mimeType || 'image/jpeg',
+                imageWidth,
+                imageHeight
             );
             photoId = saved.photoId;
             photoHash = saved.hash;
@@ -216,14 +223,28 @@ export const getHandler = async (req: Request, res: Response) => {
         }
 
         let resolvedPhotoUrl: string | null = null;
+        let photoWidth: number | undefined;
+        let photoHeight: number | undefined;
         if (inspection.photoUrl && inspection.photoUrl.startsWith('photo:')) {
             const photoId = inspection.photoUrl.replace('photo:', '');
             resolvedPhotoUrl = `/api/photos/${photoId}`;
+            try {
+                const photoRes = await db.query('SELECT width, height FROM photos WHERE photo_id = $1', [photoId]);
+                if (photoRes.rows.length > 0) {
+                    photoWidth = photoRes.rows[0].width || undefined;
+                    photoHeight = photoRes.rows[0].height || undefined;
+                }
+            } catch {}
         }
 
         res.json({
             ok: true,
-            inspection: { ...inspection, resolvedPhotoUrl },
+            inspection: { 
+                ...inspection, 
+                resolvedPhotoUrl,
+                photoWidth,
+                photoHeight
+            },
         });
     } catch (error: any) {
         logger.error('inspections', 'Get inspection failed', { error: error.message });

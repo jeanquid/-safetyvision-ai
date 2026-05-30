@@ -101,10 +101,26 @@ export async function generateInspectionPDF(inspection: InspectionState, host?: 
 
     // Resolver foto
     let photoBuffer: Buffer | null = null;
+    let photoWidth: number | undefined;
+    let photoHeight: number | undefined;
     if (inspection.photoUrl?.startsWith('photo:')) {
         try {
-            const p = await getPhoto(inspection.photoUrl.replace('photo:', ''));
-            if (p) photoBuffer = Buffer.from(p.data, 'base64');
+            const photoId = inspection.photoUrl.replace('photo:', '');
+            const p = await getPhoto(photoId);
+            if (p) {
+                photoBuffer = Buffer.from(p.data, 'base64');
+                photoWidth = p.width;
+                photoHeight = p.height;
+            }
+        } catch {}
+    }
+
+    if (photoBuffer && (!photoWidth || !photoHeight)) {
+        try {
+            const sharp = (await import('sharp')).default;
+            const meta = await sharp(photoBuffer).metadata();
+            photoWidth = meta.width;
+            photoHeight = meta.height;
         } catch {}
     }
 
@@ -375,11 +391,55 @@ export async function generateInspectionPDF(inspection: InspectionState, host?: 
             needSpace(doc, 290);
             sectionTitle(doc, 'EVIDENCIA FOTOGRÁFICA');
             try {
-                doc.image(photoBuffer, M, doc.y, { fit: [CW, 240], align: 'center' });
-                doc.y += 250;
-            } catch {
+                const boxW = CW;
+                const boxH = 240;
+                
+                // Calculo de escala proporcional
+                const origW = photoWidth || CW;
+                const origH = photoHeight || 240;
+                const scale = Math.min(boxW / origW, boxH / origH);
+                const dispW = origW * scale;
+                const dispH = origH * scale;
+                const dispX = M + (boxW - dispW) / 2;
+                const dispY = doc.y;
+
+                doc.image(photoBuffer, M, doc.y, { fit: [boxW, boxH], align: 'center' });
+
+                // Dibujar bounding boxes de riesgos sobre la imagen
+                inspection.risks.forEach((risk) => {
+                    if (risk.bbox) {
+                        const { x, y, w, h, label } = risk.bbox;
+                        const rx = dispX + x * dispW;
+                        const ry = dispY + y * dispH;
+                        const rw = w * dispW;
+                        const rh = h * dispH;
+                        
+                        const colors = RISK_COLORS[risk.level] || RISK_COLORS.medio;
+                        const levelColor = colors.text;
+
+                        doc.save();
+                        // Caja del bounding box
+                        doc.lineWidth(1.5).strokeColor(levelColor);
+                        doc.rect(rx, ry, rw, rh).stroke();
+                        
+                        // Badge con etiqueta
+                        if (label) {
+                            doc.fontSize(6).fillColor(levelColor);
+                            const textW = doc.widthOfString(label) + 4;
+                            const textH = 8;
+                            const badgeY = ry - textH >= dispY ? ry - textH : ry;
+                            doc.rect(rx, badgeY, textW, textH).fill(levelColor);
+                            doc.fillColor('#ffffff').font('Helvetica-Bold')
+                               .text(label, rx + 2, badgeY + 1);
+                        }
+                        doc.restore();
+                    }
+                });
+
+                doc.y += boxH + 10;
+            } catch (err: any) {
                 doc.font('Helvetica').fontSize(9).fillColor(GRAY_TEXT)
-                   .text('(No se pudo incrustar la imagen)', M, doc.y);
+                   .text('(No se pudo incrustar la imagen o sus anotaciones)', M, doc.y);
             }
             doc.moveDown(1);
         }
