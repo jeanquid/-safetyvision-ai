@@ -599,7 +599,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                             className={`flex items-center gap-4 p-4 bg-slate-900 border rounded-xl transition-all ${meta.bg} ${
                                 hoveredRiskId === r.id ? 'ring-2 ring-blue-500 scale-[1.005]' : ''
                             }`}
-                            style={{ borderLeftWidth: 4, borderLeftColor: r.level === 'alto' ? '#EF4444' : r.level === 'medio' ? '#F59E0B' : '#22C55E' }}>== 'medio' ? '#F59E0B' : '#22C55E' }}>
+                            style={{ borderLeftWidth: 4, borderLeftColor: r.level === 'alto' ? '#EF4444' : r.level === 'medio' ? '#F59E0B' : '#22C55E' }}>
                             <div className="w-10 h-10 rounded-lg bg-slate-800/60 border border-slate-700 flex items-center justify-center shrink-0 text-slate-300">
                                 <CategoryIcon category={r.category} />
                             </div>
