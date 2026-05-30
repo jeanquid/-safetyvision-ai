@@ -1080,7 +1080,21 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                                     </details>
                                 )}
                             </div>
-                            <span className={`text-[9px] font-black px-2 py-1 rounded-lg border ${meta.bg} ${meta.color}`}>{meta.label}</span>
+                            <div className="flex flex-col items-end gap-2 shrink-0">
+                                <span className={`text-[9px] font-black px-2 py-1 rounded-lg border ${meta.bg} ${meta.color}`}>{meta.label}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (confirm('¿Estás seguro de que deseas eliminar este riesgo de la inspección?')) {
+                                            setRisks(prev => prev.filter((_, idx) => idx !== i));
+                                        }
+                                    }}
+                                    className="p-1.5 bg-slate-800 hover:bg-red-950 text-slate-400 hover:text-red-400 rounded-lg border border-slate-700 hover:border-red-900 transition-all text-[10px]"
+                                    title="Descartar riesgo (Falso positivo)"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
                         </div>
                     );
                 })}
