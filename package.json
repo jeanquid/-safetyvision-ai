@@ -11,6 +11,7 @@
     "migrate": "tsx api/_migrate.ts",
     "seed": "tsx api/_auth/store.ts",
     "onboard": "tsx scripts/onboard-tenant.ts",
+    "legal:ingest": "tsx api/_legal/ingest.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

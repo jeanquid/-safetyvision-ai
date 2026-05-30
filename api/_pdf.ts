@@ -204,8 +204,15 @@ export async function generateInspectionPDF(inspection: InspectionState, host?: 
                 ? measureText(doc, `→ ${risk.recommendation}`, 'Helvetica-Oblique', 8, textW)
                 : 0;
 
-            // Altura total: header(20) + desc + gap(4) + reco + gap(4) + confianza(12) + padding(12)
-            const blockH = 20 + descH + 4 + (recoH > 0 ? recoH + 4 : 0) + 12 + 12;
+            const legalBasisText = risk.legalBasis
+                ? `Fundamento: ${risk.legalBasis.norma} · Art. ${risk.legalBasis.articleId} - ${risk.legalBasis.citation}`
+                : '';
+            const legalH = legalBasisText
+                ? measureText(doc, legalBasisText, 'Helvetica', 8, textW)
+                : 0;
+
+            // Altura total: header(20) + desc + gap(4) + reco + gap(4) + legal + gap(4) + confianza(12) + padding(12)
+            const blockH = 20 + descH + 4 + (recoH > 0 ? recoH + 4 : 0) + (legalH > 0 ? legalH + 4 : 0) + 12 + 12;
 
             // Saltar página si no hay espacio
             needSpace(doc, blockH + 8);
@@ -236,6 +243,13 @@ export async function generateInspectionPDF(inspection: InspectionState, host?: 
                 doc.font('Helvetica-Oblique').fontSize(8).fillColor(colors.text)
                    .text(`→ ${risk.recommendation}`, M + 10, cy, { width: textW });
                 cy += recoH + 4;
+            }
+
+            // Fundamento Normativo RAG
+            if (legalBasisText) {
+                doc.font('Helvetica').fontSize(8).fillColor('#475569')
+                   .text(legalBasisText, M + 10, cy, { width: textW });
+                cy += legalH + 4;
             }
 
             // Confianza IA

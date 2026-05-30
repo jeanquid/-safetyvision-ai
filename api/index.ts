@@ -22,6 +22,7 @@ async function ensureTables() {
         await db.query('SELECT 1 FROM schedules LIMIT 0');
         await db.query('SELECT 1 FROM compliance_records LIMIT 0');
         await db.query('SELECT 1 FROM audit_access_logs LIMIT 0');
+        await db.query('SELECT 1 FROM legal_chunks LIMIT 0');
 
         // Verificar columnas añadidas por migraciones
         await db.query('SELECT full_name, assigned_companies FROM users LIMIT 0');
@@ -260,6 +261,19 @@ async function ensureTables() {
             );
         `);
 
+        // 11. Table: legal_chunks (RAG corpus chunks)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS legal_chunks (
+                id TEXT PRIMARY KEY,
+                norma TEXT NOT NULL,
+                article_id TEXT NOT NULL,
+                title TEXT,
+                content TEXT NOT NULL,
+                embedding JSONB NOT NULL,
+                tenant_id TEXT NOT NULL
+            );
+        `);
+
         // ── Creación de índices ──
         await db.query(`CREATE INDEX IF NOT EXISTS idx_inspections_tenant ON inspections(tenant_id);`);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_inspections_plant ON inspections(plant);`);
@@ -274,6 +288,8 @@ async function ensureTables() {
         await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_feedback_tenant ON ai_feedback(tenant_id);`);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_schedules_tenant ON schedules(tenant_id);`);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_schedules_inspector ON schedules(inspector_id);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_legal_chunks_tenant ON legal_chunks(tenant_id);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_legal_chunks_article ON legal_chunks(article_id);`);
 
         // Sembrar usuarios de demostración por defecto
         await seedUsers();

@@ -12,6 +12,8 @@ const MODELS_FALLBACK = [
     'gemini-2.5-pro',
 ];
 
+const ENABLE_LEGAL_GROUNDING = true;
+
 /**
  * Retorna un modelo configurado. Intenta Vertex AI primero si hay configuración,
  * de lo contrario cae en Google AI Studio.
@@ -139,6 +141,19 @@ export async function analyzeImageWithGemini(
                     aiModel: `${provider}:${modelName}`,
                 }));
 
+                // Fundamentación normativa con RAG (Feature B)
+                if (ENABLE_LEGAL_GROUNDING && process.env.TENANT === 'ensi') {
+                    const { retrieveLegalBasis } = await import('./_legal/retriever.js');
+                    for (const risk of risks) {
+                        try {
+                            risk.legalBasis = await retrieveLegalBasis(risk.description, 'ensi');
+                        } catch (err: any) {
+                            logger.error('ai', 'Failed to retrieve legal basis for risk', { riskId: risk.id, error: err.message });
+                            risk.legalBasis = null;
+                        }
+                    }
+                }
+
                 return { risks, model: `${provider}:${modelName}`, rawResponse: text };
             } catch (err: any) {
                 logger.warn('ai', `${provider}:${modelName} failed`, { error: err.message });
@@ -170,17 +185,32 @@ export async function analyzeTextDescription(
                 const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
                 const parsed = JSON.parse(cleaned);
 
+                const risks = (parsed.risks || []).map((r: any) => ({
+                    id: uuidv4(),
+                    category: validateCategory(r.category),
+                    description: r.description || 'Riesgo detectado',
+                    level: validateLevel(r.level),
+                    confidence: Math.min(99, Math.max(60, r.confidence || 75)),
+                    recommendation: r.recommendation,
+                    status: 'pendiente' as const,
+                    aiModel: `${provider}:${modelName}`,
+                }));
+
+                // Fundamentación normativa con RAG (Feature B)
+                if (ENABLE_LEGAL_GROUNDING && process.env.TENANT === 'ensi') {
+                    const { retrieveLegalBasis } = await import('./_legal/retriever.js');
+                    for (const risk of risks) {
+                        try {
+                            risk.legalBasis = await retrieveLegalBasis(risk.description, 'ensi');
+                        } catch (err: any) {
+                            logger.error('ai', 'Failed to retrieve legal basis for risk', { riskId: risk.id, error: err.message });
+                            risk.legalBasis = null;
+                        }
+                    }
+                }
+
                 return {
-                    risks: (parsed.risks || []).map((r: any) => ({
-                        id: uuidv4(),
-                        category: validateCategory(r.category),
-                        description: r.description || 'Riesgo detectado',
-                        level: validateLevel(r.level),
-                        confidence: Math.min(99, Math.max(60, r.confidence || 75)),
-                        recommendation: r.recommendation,
-                        status: 'pendiente' as const,
-                        aiModel: `${provider}:${modelName}`,
-                    })),
+                    risks,
                     model: `${provider}:${modelName}`,
                     rawResponse: text
                 };
@@ -199,4 +229,26 @@ function validateCategory(c: string): RiskCategory {
 function validateLevel(l: string): RiskLevel {
     if (['alto', 'medio', 'bajo'].includes(l)) return l as RiskLevel;
     return 'medio';
+}
+
+export async function getEmbedding(text: string): Promise<number[]> {
+    const providers: ('vertex' | 'studio')[] = ['vertex', 'studio'];
+    let lastError: Error | null = null;
+    
+    for (const provider of providers) {
+        try {
+            const model = getClient(provider, 'text-embedding-004');
+            if (!model) continue;
+            
+            logger.info('ai', `Generating embedding with ${provider}:text-embedding-004`);
+            const result = await (model as any).embedContent(text);
+            if (result && result.embedding && result.embedding.values) {
+                return result.embedding.values;
+            }
+        } catch (err: any) {
+            logger.warn('ai', `Embedding failed with ${provider}:text-embedding-004`, { error: err.message });
+            lastError = err;
+        }
+    }
+    throw new Error(`All embedding models failed. Last error: ${lastError?.message}`);
 }

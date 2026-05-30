@@ -10,6 +10,7 @@ vi.mock('bcryptjs', () => ({
     },
 }));
 
+
 const mockInspections = new Map<string, any>();
 const mockCompanies   = new Map<string, any>();
 const mockSchedules   = new Map<string, any>();
@@ -20,6 +21,43 @@ const mockTenants = new Map<string, any>([
 ]);
 let mockCompanyListRows: any[] = [];
 let mockScheduleListRows: any[] = [];
+
+const vec1 = new Array(768).fill(0); vec1[0] = 1.0;
+const vec2 = new Array(768).fill(0); vec2[1] = 1.0;
+const vec3 = new Array(768).fill(0); vec3[2] = 1.0;
+
+const DEFAULT_LEGAL_CHUNKS = [
+    {
+        id: 'lc-001',
+        norma: 'ley-19587',
+        article_id: 'ley-19587-art-8',
+        title: 'Artículo 8 - Obligaciones del Empleador',
+        content: 'Todo empleador debe adoptar y poner en práctica las medidas adecuadas de higiene y seguridad para proteger la vida y la integridad de los trabajadores, especialmente en lo relativo a la provisión de equipos de protección individual.',
+        embedding: JSON.stringify(vec1),
+        tenant_id: 'ensi'
+    },
+    {
+        id: 'lc-002',
+        norma: 'decreto-351-79',
+        article_id: 'dec-351-79-anexo-VI-epp',
+        title: 'Anexo VI - Equipos de Protección Personal (EPP)',
+        content: 'Los equipos de protección personal deberán ser proporcionados por el empleador y ser de uso obligatorio para los trabajadores cuando existan riesgos en el ambiente laboral. Comprende el uso de cascos de seguridad, arnés, etc.',
+        embedding: JSON.stringify(vec2),
+        tenant_id: 'ensi'
+    },
+    {
+        id: 'lc-003',
+        norma: 'resolucion-srt-900-15',
+        article_id: 'res-srt-900-15-art-1',
+        title: 'Artículo 1 - Medición Obligatoria de Puesta a Tierra',
+        content: 'Establece con carácter obligatorio la medición del valor de resistencia de puesta a tierra y la verificación de la continuidad eléctrica de las masas.',
+        embedding: JSON.stringify(vec3),
+        tenant_id: 'ensi'
+    }
+];
+
+let mockLegalChunks = [...DEFAULT_LEGAL_CHUNKS];
+
 
 const MOCK_ADMIN = {
     id: 'test-user-id-001',
@@ -153,6 +191,25 @@ export const mockDb = {
             return { rows: [], rowCount: 1 };
         }
 
+        // ── Legal Chunks ──────────────────────────────────────────────────────
+        if (sql.includes('DELETE FROM legal_chunks')) {
+            mockLegalChunks = [];
+            return { rows: [], rowCount: 0 };
+        }
+
+        if (sql.includes('INSERT INTO legal_chunks')) {
+            const [id, norma, article_id, title, content, embedding, tenant_id] = params || [];
+            mockLegalChunks.push({ id, norma, article_id, title, content, embedding, tenant_id });
+            return { rows: [], rowCount: 1 };
+        }
+
+        if (sql.includes('FROM legal_chunks')) {
+            const tenantId = params?.[0] || 'ensi';
+            const filtered = mockLegalChunks.filter(c => c.tenant_id === tenantId);
+            return { rows: filtered };
+        }
+
+
         // ── Health ────────────────────────────────────────────────────────────
         if (sql === 'SELECT 1') {
             return { rows: [{ '?column?': 1 }] };
@@ -194,6 +251,7 @@ export const mockDb = {
         mockComplianceRecords.clear();
         mockCompanyListRows = [];
         mockScheduleListRows = [];
+        mockLegalChunks = [...DEFAULT_LEGAL_CHUNKS];
         mockDb.query.mockClear();
     },
 };

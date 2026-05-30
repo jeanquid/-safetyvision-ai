@@ -95,6 +95,22 @@ async function migrate() {
         `);
         console.log('✅ Table "audit_access_logs" OK.');
 
+        console.log('--- Creating table: legal_chunks ---');
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS legal_chunks (
+                id TEXT PRIMARY KEY,
+                norma TEXT NOT NULL,
+                article_id TEXT NOT NULL,
+                title TEXT,
+                content TEXT NOT NULL,
+                embedding JSONB NOT NULL,
+                tenant_id TEXT NOT NULL
+            );
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_legal_chunks_tenant ON legal_chunks(tenant_id);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_legal_chunks_article ON legal_chunks(article_id);`);
+        console.log('✅ Table "legal_chunks" OK.');
+
 
         console.log('--- Creating table: tenants ---');
         await db.query(`

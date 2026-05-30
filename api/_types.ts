@@ -21,6 +21,13 @@ export interface AuditEntry {
 }
 
 
+export interface LegalBasis {
+    articleId: string;
+    norma: string;
+    citation: string;
+    relevance: number;
+}
+
 export interface DetectedRisk {
     id: string;
     category: RiskCategory;
@@ -33,6 +40,7 @@ export interface DetectedRisk {
     updatedAt?: string;
     history: AuditEntry[];
     aiModel?: string;
+    legalBasis?: LegalBasis | null;
 }
 
 export interface CorrectiveTask {

@@ -483,6 +483,18 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                                         <span>{r.recommendation}</span>
                                     </div>
                                 )}
+                                {r.legalBasis && (
+                                    <details className="mt-2 group text-xs">
+                                        <summary className="cursor-pointer text-slate-400 hover:text-slate-200 select-none flex items-center gap-1.5 font-medium transition-colors focus:outline-none">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                            Fundamento: {r.legalBasis.norma} · {r.legalBasis.articleId}
+                                        </summary>
+                                        <div className="mt-1.5 pl-3 border-l border-blue-500/30 text-slate-300 italic leading-relaxed py-0.5">
+                                            "{r.legalBasis.citation}"
+                                            <span className="text-[10px] text-blue-400/80 font-bold block mt-1">Relevancia: {Math.round(r.legalBasis.relevance * 100)}%</span>
+                                        </div>
+                                    </details>
+                                )}
                             </div>
                             <span className={`text-[9px] font-black px-2 py-1 rounded-lg border ${meta.bg} ${meta.color}`}>{meta.label}</span>
                         </div>
