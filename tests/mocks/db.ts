@@ -191,6 +191,10 @@ export const mockDb = {
             return { rows: [], rowCount: 1 };
         }
 
+        if (sql.includes('INSERT INTO ai_feedback')) {
+            return { rows: [], rowCount: 1 };
+        }
+
         // ── Legal Chunks ──────────────────────────────────────────────────────
         if (sql.includes('DELETE FROM legal_chunks')) {
             mockLegalChunks = [];

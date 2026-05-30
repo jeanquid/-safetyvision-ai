@@ -28,6 +28,7 @@ async function ensureTables() {
         await db.query('SELECT full_name, assigned_companies FROM users LIMIT 0');
         await db.query('SELECT company_id FROM inspections LIMIT 0');
         await db.query('SELECT photo_hash FROM photos LIMIT 0');
+        await db.query('SELECT assessment_stats FROM ai_feedback LIMIT 0');
 
 
         // Si la tabla de usuarios está vacía, forzar el sembrado de usuarios por defecto
@@ -215,8 +216,12 @@ async function ensureTables() {
                 risks_added INT DEFAULT 0,
                 plant TEXT,
                 sector TEXT,
+                assessment_stats JSONB,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+        `);
+        await db.query(`
+            ALTER TABLE ai_feedback ADD COLUMN IF NOT EXISTS assessment_stats JSONB;
         `);
 
         // 8. Table: schedules (Planned inspections)

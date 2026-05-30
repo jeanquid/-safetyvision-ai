@@ -71,6 +71,12 @@ function compressImageClient(
     });
 }
 
+function deriveLevelFromScore(score: number): 'bajo' | 'medio' | 'alto' {
+    if (score <= 5) return 'bajo';
+    if (score <= 12) return 'medio';
+    return 'alto';
+}
+
 interface Props {
     onComplete: () => void;
     selectedCompanyId?: string;
@@ -199,8 +205,23 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
             // Pequeña pausa para que el usuario vea el check verde
             await new Promise(r => setTimeout(r, 600));
 
-            setRisks(data.risks || []);
-            setOriginalRisks(JSON.parse(JSON.stringify(data.risks || [])));
+            const enrichedRisks = (data.risks || []).map((r: any) => {
+                if (!r.assessment) {
+                    const p = r.level === 'alto' ? 4 : r.level === 'medio' ? 3 : 2;
+                    const c = r.level === 'alto' ? 4 : r.level === 'medio' ? 3 : 2;
+                    r.assessment = {
+                        probability: p,
+                        consequence: c,
+                        score: p * c,
+                        level: r.level,
+                        source: 'ai'
+                    };
+                }
+                return r;
+            });
+
+            setRisks(enrichedRisks);
+            setOriginalRisks(JSON.parse(JSON.stringify(enrichedRisks)));
             setAiModel(data.model || 'unknown');
             setStep('results');
         } catch (err: any) {
@@ -208,6 +229,29 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
             setStep('form');
             setAnalysisStep(0);
         }
+    };
+
+    const handleAssessmentChange = (riskIndex: number, p: number, c: number) => {
+        setRisks(prev => {
+            const updated = [...prev];
+            const risk = { ...updated[riskIndex] };
+            const score = p * c;
+            const derivedLevel = deriveLevelFromScore(score);
+            
+            risk.assessment = {
+                ...risk.assessment,
+                probability: p,
+                consequence: c,
+                score,
+                level: derivedLevel,
+                source: 'inspector',
+                confirmedBy: user?.id || user?.userId || 'inspector',
+                confirmedAt: new Date().toISOString()
+            };
+            risk.level = derivedLevel;
+            updated[riskIndex] = risk;
+            return updated;
+        });
     };
 
     const handleSave = async () => {
@@ -481,6 +525,64 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                                     <div className="text-xs text-blue-400 mt-1 flex items-start gap-1.5">
                                         <Lightbulb className="w-3 h-3 mt-0.5 shrink-0" />
                                         <span>{r.recommendation}</span>
+                                    </div>
+                                )}
+
+                                {r.assessment && (
+                                    <div className="mt-4 p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-3">
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                            Matriz de Riesgo Probabilidad x Consecuencia (5x5)
+                                        </div>
+                                        
+                                        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                                            <div className="grid grid-cols-5 gap-1 w-44 shrink-0">
+                                                {[5, 4, 3, 2, 1].flatMap(p => 
+                                                    [1, 2, 3, 4, 5].map(c => {
+                                                        const score = p * c;
+                                                        const lvl = deriveLevelFromScore(score);
+                                                        const isSelected = r.assessment.probability === p && r.assessment.consequence === c;
+                                                        
+                                                        const colorClasses = 
+                                                            lvl === 'alto' ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/30' :
+                                                            lvl === 'medio' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/30' :
+                                                            'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30';
+                                                        
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                key={`${p}-${c}`}
+                                                                onClick={() => handleAssessmentChange(i, p, c)}
+                                                                className={`h-7 w-full border rounded text-[9px] font-bold transition-all flex items-center justify-center relative ${colorClasses} ${
+                                                                    isSelected ? 'ring-2 ring-blue-500 border-blue-400 scale-105 bg-blue-500/20 text-white z-10' : ''
+                                                                }`}
+                                                                title={`P: ${p} x C: ${c} = Score: ${score} (${lvl})`}
+                                                            >
+                                                                {score}
+                                                            </button>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                            
+                                            <div className="flex-1 space-y-1 text-xs">
+                                                <div className="text-slate-200 font-semibold">
+                                                    Evaluación: <span className={meta.color}>{r.level.toUpperCase()}</span> (P:{r.assessment.probability} x C:{r.assessment.consequence} = {r.assessment.score})
+                                                </div>
+                                                <div className="text-[10px] text-slate-400">
+                                                    {r.assessment.source === 'ai' ? (
+                                                        <span className="text-blue-400 font-medium">Clasificación sugerida por IA — confirmá o ajustá según tu criterio profesional</span>
+                                                    ) : (
+                                                        <span className="text-emerald-400 font-medium">Clasificación ajustada por el inspector</span>
+                                                    )}
+                                                </div>
+                                                {(r.assessment.probabilityJustification || r.assessment.consequenceJustification) && (
+                                                    <div className="text-[10px] text-slate-500 mt-1 italic space-y-0.5 border-l border-slate-800 pl-2">
+                                                        {r.assessment.probabilityJustification && <div>Probabilidad: {r.assessment.probabilityJustification}</div>}
+                                                        {r.assessment.consequenceJustification && <div>Consecuencia: {r.assessment.consequenceJustification}</div>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                                 {r.legalBasis && (

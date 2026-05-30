@@ -14,6 +14,18 @@ vi.mock('../../contexts/AuthContext', () => ({
     }),
 }));
 
+vi.mock('../../lib/config', () => ({
+    IS_ENSI: false,
+    ENSI_BRAND: {
+        website: 'ensi.com.ar',
+        primaryColor: '#003A70',
+        accentColor: '#005FA3',
+        tagline: 'Inspecciones de campo digitalizadas · Sector O&G · Neuquén',
+        company: 'Empresa Neuquina de Servicios de Ingeniería S.E.',
+        poweredBy: 'Powered by SafetyVision AI · Nodo8'
+    }
+}));
+
 describe('LoginScreen', () => {
     beforeEach(() => {
         mockLogin.mockClear();

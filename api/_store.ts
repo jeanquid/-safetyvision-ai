@@ -1,4 +1,4 @@
-import { InspectionState, DetectedRisk, CorrectiveTask, AuditEntry, deriveInspectionStatus, deriveTaskStatus } from './_types.js';
+import { InspectionState, DetectedRisk, CorrectiveTask, AuditEntry, deriveInspectionStatus, deriveTaskStatus, Probability, Consequence, RiskAssessment, deriveLevelFromScore } from './_types.js';
 import { v4 as uuidv4 } from 'uuid';
 import db from './_db.js';
 import { logger } from './_logger.js';
@@ -272,7 +272,8 @@ export async function updateRiskStatus(
     riskId: string,
     newStatus: string,
     user: { userId: string; email: string; displayName?: string },
-    note?: string
+    note?: string,
+    newAssessment?: { probability: Probability; consequence: Consequence }
 ): Promise<InspectionState> {
     const ins = await getInspection(inspectionId);
     if (!ins) throw new Error(`Inspection ${inspectionId} not found`);
@@ -281,11 +282,18 @@ export async function updateRiskStatus(
     if (!risk) throw new Error(`Risk ${riskId} not found in inspection ${inspectionId}`);
 
     const oldStatus = risk.status;
-    if (oldStatus === newStatus) return ins;
+    const hasStatusChange = oldStatus !== newStatus;
+    const hasAssessmentChange = newAssessment && (
+        !risk.assessment || 
+        risk.assessment.probability !== newAssessment.probability || 
+        risk.assessment.consequence !== newAssessment.consequence
+    );
+
+    if (!hasStatusChange && !hasAssessmentChange) return ins;
 
     const now = new Date().toISOString();
 
-    const lastSeal = ins.auditTrail.length > 0
+    let lastSeal = ins.auditTrail.length > 0
         ? ins.auditTrail[ins.auditTrail.length - 1].seal
         : '0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -300,33 +308,84 @@ export async function updateRiskStatus(
         } catch {}
     }
 
-    const auditEntry: Omit<AuditEntry, 'seal'> = {
-        id: uuidv4(),
-        riskId,
-        action: 'status_change',
-        fromStatus: oldStatus as any,
-        toStatus: newStatus as any,
-        note,
-        inspectorId: user.userId,
-        inspectorEmail: user.email,
-        inspectorName: user.displayName || user.email,
-        timestamp: now,
-        photoHash,
-        sealVersion: 2,
-    };
+    const newSealedEntries: AuditEntry[] = [];
 
-    const seal = await generateSeal(auditEntry, lastSeal);
-    const sealedEntry: AuditEntry = { ...auditEntry, seal };
+    if (hasAssessmentChange && newAssessment) {
+        const oldProb = risk.assessment?.probability;
+        const oldCons = risk.assessment?.consequence;
+        
+        const score = newAssessment.probability * newAssessment.consequence;
+        const derivedLevel = deriveLevelFromScore(score);
+        
+        risk.assessment = {
+            probability: newAssessment.probability,
+            consequence: newAssessment.consequence,
+            score,
+            level: derivedLevel,
+            source: 'inspector',
+            confirmedBy: user.userId,
+            confirmedAt: now,
+            probabilityJustification: risk.assessment?.probabilityJustification,
+            consequenceJustification: risk.assessment?.consequenceJustification
+        };
+        risk.level = derivedLevel;
+        risk.updatedBy = user.email;
+        risk.updatedAt = now;
 
+        const auditEntry: Omit<AuditEntry, 'seal'> = {
+            id: uuidv4(),
+            riskId,
+            action: 'risk_edited',
+            note: note || `Evaluación de riesgo ajustada de P:${oldProb || '?'}/C:${oldCons || '?'} a P:${newAssessment.probability}/C:${newAssessment.consequence} (${derivedLevel})`,
+            inspectorId: user.userId,
+            inspectorEmail: user.email,
+            inspectorName: user.displayName || user.email,
+            timestamp: now,
+            photoHash,
+            sealVersion: 2,
+        };
 
-    risk.status = newStatus as any;
-    risk.updatedBy = user.email;
-    risk.updatedAt = now;
-    if (!risk.history) risk.history = [];
-    risk.history.push(sealedEntry);
+        const seal = await generateSeal(auditEntry, lastSeal);
+        const sealedEntry: AuditEntry = { ...auditEntry, seal };
+        lastSeal = seal;
 
-    if (!ins.auditTrail) ins.auditTrail = [];
-    ins.auditTrail.push(sealedEntry);
+        if (!risk.history) risk.history = [];
+        risk.history.push(sealedEntry);
+        if (!ins.auditTrail) ins.auditTrail = [];
+        ins.auditTrail.push(sealedEntry);
+        newSealedEntries.push(sealedEntry);
+    }
+
+    if (hasStatusChange) {
+        risk.status = newStatus as any;
+        risk.updatedBy = user.email;
+        risk.updatedAt = now;
+
+        const auditEntry: Omit<AuditEntry, 'seal'> = {
+            id: uuidv4(),
+            riskId,
+            action: 'status_change',
+            fromStatus: oldStatus as any,
+            toStatus: newStatus as any,
+            note: hasAssessmentChange ? undefined : note,
+            inspectorId: user.userId,
+            inspectorEmail: user.email,
+            inspectorName: user.displayName || user.email,
+            timestamp: now,
+            photoHash,
+            sealVersion: 2,
+        };
+
+        const seal = await generateSeal(auditEntry, lastSeal);
+        const sealedEntry: AuditEntry = { ...auditEntry, seal };
+        lastSeal = seal;
+
+        if (!risk.history) risk.history = [];
+        risk.history.push(sealedEntry);
+        if (!ins.auditTrail) ins.auditTrail = [];
+        ins.auditTrail.push(sealedEntry);
+        newSealedEntries.push(sealedEntry);
+    }
 
     ins.status = deriveInspectionStatus(ins.risks);
     ins.task.status = deriveTaskStatus(ins.risks);
@@ -350,7 +409,7 @@ export async function updateRiskStatus(
     ins.complianceNotes = autocontrol.notes;
 
     if (ins.status === 'closed') {
-        const closingHash = sealedEntry.seal;
+        const closingHash = lastSeal;
         try {
             const { ensureComplianceRecord } = await import('./_inspections/compliance.js');
             await ensureComplianceRecord(inspectionId, ins.tenantId, closingHash);
@@ -379,15 +438,17 @@ export async function updateRiskStatus(
             WHERE inspection_id = $2
         `, [JSON.stringify(ins), inspectionId]);
 
-        await db.query(`
-            INSERT INTO audit_trail (id, inspection_id, tenant_id, risk_id, action, from_status, to_status, note, inspector_id, inspector_email, inspector_name, seal, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        `, [
-            sealedEntry.id, inspectionId, ins.tenantId, riskId,
-            sealedEntry.action, oldStatus, newStatus, note || null,
-            user.userId, user.email, user.displayName || user.email,
-            seal, now
-        ]);
+        for (const entry of newSealedEntries) {
+            await db.query(`
+                INSERT INTO audit_trail (id, inspection_id, tenant_id, risk_id, action, from_status, to_status, note, inspector_id, inspector_email, inspector_name, seal, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            `, [
+                entry.id, inspectionId, ins.tenantId, riskId,
+                entry.action, entry.fromStatus || null, entry.toStatus || null, entry.note || null,
+                user.userId, user.email, user.displayName || user.email,
+                entry.seal, now
+            ]);
+        }
 
         logger.info('store', 'Risk status updated', { inspectionId, riskId, from: oldStatus, to: newStatus, by: user.email });
     } catch (error: any) {
@@ -581,6 +642,12 @@ export async function saveAiFeedback(data: {
         removed: number;
         added: number;
     };
+    assessmentStats?: {
+        acceptedWithoutChange: number;
+        adjusted: number;
+        up: number;
+        down: number;
+    };
     plant?: string;
     sector?: string;
 }): Promise<void> {
@@ -590,13 +657,14 @@ export async function saveAiFeedback(data: {
             INSERT INTO ai_feedback (
                 id, inspection_id, tenant_id, ai_risks, final_risks,
                 risks_accepted, risks_edited, risks_removed, risks_added,
-                plant, sector
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                plant, sector, assessment_stats
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         `, [
             id, data.inspectionId, data.tenantId,
             JSON.stringify(data.aiRisks), JSON.stringify(data.finalRisks),
             data.stats.accepted, data.stats.edited, data.stats.removed, data.stats.added,
-            data.plant, data.sector
+            data.plant, data.sector,
+            data.assessmentStats ? JSON.stringify(data.assessmentStats) : null
         ]);
         logger.info('store', 'AI feedback saved', { inspectionId: data.inspectionId });
     } catch (error: any) {

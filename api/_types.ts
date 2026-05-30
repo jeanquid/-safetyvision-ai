@@ -3,6 +3,34 @@ export type RiskCategory = 'epp' | 'condiciones' | 'comportamiento';
 export type TaskStatus = 'pendiente' | 'en_progreso' | 'resuelto';
 export type InspectionStatus = 'analyzing' | 'pending_review' | 'active' | 'closed';
 
+export type Probability = 1 | 2 | 3 | 4 | 5;
+export type Consequence = 1 | 2 | 3 | 4 | 5;
+
+export interface RiskAssessment {
+    probability: Probability;
+    consequence: Consequence;
+    score: number;
+    level: RiskLevel;
+    source: 'ai' | 'inspector';
+    confirmedBy?: string;
+    confirmedAt?: string;
+    probabilityJustification?: string;
+    consequenceJustification?: string;
+}
+
+/**
+ * Derives the RiskLevel ('bajo' | 'medio' | 'alto') from a 1-25 matrix score.
+ * Cuts:
+ * - 1 to 5: 'bajo' (Green)
+ * - 6 to 12: 'medio' (Yellow)
+ * - 13 to 25: 'alto' (Red)
+ */
+export function deriveLevelFromScore(score: number): RiskLevel {
+    if (score <= 5) return 'bajo';
+    if (score <= 12) return 'medio';
+    return 'alto';
+}
+
 export interface AuditEntry {
     id: string;
     riskId: string;
@@ -41,6 +69,7 @@ export interface DetectedRisk {
     history: AuditEntry[];
     aiModel?: string;
     legalBasis?: LegalBasis | null;
+    assessment?: RiskAssessment;
 }
 
 export interface CorrectiveTask {

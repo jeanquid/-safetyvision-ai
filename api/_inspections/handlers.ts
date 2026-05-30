@@ -130,7 +130,42 @@ export const createHandler = async (req: Request, res: Response) => {
             const originalIds = new Set(original.map((r: any) => r.id));
             original.forEach((r: any) => { if (finalIds.has(r.id)) stats.accepted++; else stats.removed++; });
             final.forEach((r: any) => { if (!originalIds.has(r.id)) stats.added++; });
-            void saveAiFeedback({ inspectionId: inspection.inspectionId, tenantId: user.tenantId, aiRisks: original, finalRisks: final, stats, plant, sector });
+
+            const assessmentStats = {
+                acceptedWithoutChange: 0,
+                adjusted: 0,
+                up: 0,
+                down: 0
+            };
+
+            final.forEach((fRisk: any) => {
+                const origRisk = original.find((o: any) => o.id === fRisk.id);
+                if (origRisk && origRisk.assessment && fRisk.assessment) {
+                    const oScore = origRisk.assessment.score;
+                    const fScore = fRisk.assessment.score;
+                    if (oScore === fScore && fRisk.assessment.source === 'ai') {
+                        assessmentStats.acceptedWithoutChange++;
+                    } else {
+                        assessmentStats.adjusted++;
+                        if (fScore > oScore) {
+                            assessmentStats.up++;
+                        } else if (fScore < oScore) {
+                            assessmentStats.down++;
+                        }
+                    }
+                }
+            });
+
+            void saveAiFeedback({
+                inspectionId: inspection.inspectionId,
+                tenantId: user.tenantId,
+                aiRisks: original,
+                finalRisks: final,
+                stats,
+                assessmentStats,
+                plant,
+                sector
+            });
         }
 
         res.json({ ok: true, inspectionId: inspection.inspectionId, state: inspection });
@@ -197,15 +232,15 @@ export const getHandler = async (req: Request, res: Response) => {
 };
 
 /**
- * PATCH /api/inspections/:id/risks/:riskId — Actualizar status de un riesgo individual
- * Body: { status: 'pendiente' | 'en_progreso' | 'resuelto', note?: string }
+ * PATCH /api/inspections/:id/risks/:riskId — Actualizar status o evaluación de un riesgo individual
+ * Body: { status?: 'pendiente' | 'en_progreso' | 'resuelto', note?: string, probability?: number, consequence?: number }
  */
 export const updateRiskHandler = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
         const id = req.params.id as string;
         const riskId = req.params.riskId as string;
-        const { status, note } = req.body;
+        const { status, note, probability, consequence } = req.body;
 
         const existing = await getInspection(id);
         if (!existing) return res.status(404).json({ error: 'Inspection not found' });
@@ -213,15 +248,30 @@ export const updateRiskHandler = async (req: Request, res: Response) => {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        if (!['pendiente', 'en_progreso', 'resuelto'].includes(status)) {
+        const risk = existing.risks.find(r => r.id === riskId);
+        if (!risk) return res.status(404).json({ error: 'Risk not found' });
+
+        const targetStatus = status || risk.status;
+        if (!['pendiente', 'en_progreso', 'resuelto'].includes(targetStatus)) {
             return res.status(400).json({ error: 'Invalid status. Must be: pendiente, en_progreso, resuelto' });
         }
 
-        const updated = await updateRiskStatus(id, riskId, status, {
+        let newAssessment;
+        if (probability !== undefined && consequence !== undefined) {
+            const p = parseInt(probability, 10);
+            const c = parseInt(consequence, 10);
+            if (p >= 1 && p <= 5 && c >= 1 && c <= 5) {
+                newAssessment = { probability: p as any, consequence: c as any };
+            } else {
+                return res.status(400).json({ error: 'probability and consequence must be integers between 1 and 5' });
+            }
+        }
+
+        const updated = await updateRiskStatus(id, riskId, targetStatus, {
             userId: user.userId,
             email: user.email,
             displayName: user.displayName,
-        }, note);
+        }, note, newAssessment);
 
         if (updated.status === 'closed' && existing.status !== 'closed') {
             void notifyAlert('tarea_resuelta', {

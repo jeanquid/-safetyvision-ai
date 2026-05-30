@@ -199,8 +199,12 @@ async function migrate() {
                 risks_added INT DEFAULT 0,
                 plant TEXT,
                 sector TEXT,
+                assessment_stats JSONB,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+        `);
+        await db.query(`
+            ALTER TABLE ai_feedback ADD COLUMN IF NOT EXISTS assessment_stats JSONB;
         `);
         console.log('✅ Table "ai_feedback" OK.');
         

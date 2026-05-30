@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { InspectionState } from './_types.js';
+import { InspectionState, DetectedRisk, AuditEntry, LegalBasis, deriveLevelFromScore } from './_types.js';
 import { getPhoto } from './_storage.js';
 import db from './_db.js';
 import { qrcodegen } from './_inspections/qrcodegen.js';
@@ -211,8 +211,10 @@ export async function generateInspectionPDF(inspection: InspectionState, host?: 
                 ? measureText(doc, legalBasisText, 'Helvetica', 8, textW)
                 : 0;
 
-            // Altura total: header(20) + desc + gap(4) + reco + gap(4) + legal + gap(4) + confianza(12) + padding(12)
-            const blockH = 20 + descH + 4 + (recoH > 0 ? recoH + 4 : 0) + (legalH > 0 ? legalH + 4 : 0) + 12 + 12;
+            const assessmentH = risk.assessment ? 75 : 0;
+
+            // Altura total: header(20) + desc + gap(4) + reco + gap(4) + legal + gap(4) + assessment + gap(4) + confianza(12) + padding(12)
+            const blockH = 20 + descH + 4 + (recoH > 0 ? recoH + 4 : 0) + (legalH > 0 ? legalH + 4 : 0) + (assessmentH > 0 ? assessmentH + 4 : 0) + 12 + 12;
 
             // Saltar página si no hay espacio
             needSpace(doc, blockH + 8);
@@ -250,6 +252,72 @@ export async function generateInspectionPDF(inspection: InspectionState, host?: 
                 doc.font('Helvetica').fontSize(8).fillColor('#475569')
                    .text(legalBasisText, M + 10, cy, { width: textW });
                 cy += legalH + 4;
+            }
+
+            // Matriz de Riesgo 5x5
+            if (risk.assessment) {
+                const startX = M + 10;
+                const startY = cy;
+                const cellSize = 11;
+                
+                // Dibujar etiquetas de ejes
+                doc.font('Helvetica-Bold').fontSize(6).fillColor('#64748b')
+                   .text('P', startX - 8, startY + 20);
+                
+                doc.font('Helvetica-Bold').fontSize(6).fillColor('#64748b')
+                   .text('C', startX + 25, startY + 5 * cellSize + 2);
+                
+                for (let p = 5; p >= 1; p--) {
+                    for (let c = 1; c <= 5; c++) {
+                        const cellX = startX + (c - 1) * cellSize;
+                        const cellY = startY + (5 - p) * cellSize;
+                        const score = p * c;
+                        const lvl = deriveLevelFromScore(score);
+                        
+                        let bg = '#A7F3D0'; // bajo
+                        if (lvl === 'medio') bg = '#FDE68A';
+                        if (lvl === 'alto') bg = '#FCA5A5';
+                        
+                        doc.rect(cellX, cellY, cellSize, cellSize).fill(bg);
+                        doc.rect(cellX, cellY, cellSize, cellSize).stroke('#e2e8f0');
+                        
+                        if (p === risk.assessment.probability && c === risk.assessment.consequence) {
+                            doc.save();
+                            doc.lineWidth(1.5).strokeColor('#0f172a');
+                            doc.rect(cellX, cellY, cellSize, cellSize).stroke();
+                            doc.circle(cellX + cellSize / 2, cellY + cellSize / 2, 2.5).fill('#0f172a');
+                            doc.restore();
+                        }
+                    }
+                }
+                
+                const infoX = startX + 5 * cellSize + 15;
+                const infoW = textW - (5 * cellSize + 15);
+                
+                doc.font('Helvetica-Bold').fontSize(8).fillColor('#1e293b')
+                   .text(`Evaluación Asistida: ${risk.assessment.level.toUpperCase()} (P:${risk.assessment.probability} x C:${risk.assessment.consequence} = ${risk.assessment.score})`, infoX, startY);
+                
+                const sourceText = risk.assessment.source === 'ai' 
+                    ? `Sugerido por IA (${risk.aiModel || 'Gemini'})` 
+                    : `Confirmado por Inspector (ID: ${risk.assessment.confirmedBy || 'Usuario'})`;
+                    
+                doc.font('Helvetica-Oblique').fontSize(7.5).fillColor('#475569')
+                   .text(sourceText, infoX, startY + 11);
+                   
+                let justText = '';
+                if (risk.assessment.probabilityJustification) {
+                    justText += `P: ${risk.assessment.probabilityJustification} `;
+                }
+                if (risk.assessment.consequenceJustification) {
+                    justText += `C: ${risk.assessment.consequenceJustification}`;
+                }
+                
+                if (justText) {
+                    doc.font('Helvetica').fontSize(7).fillColor('#64748b')
+                       .text(justText.substring(0, 160) + (justText.length > 160 ? '...' : ''), infoX, startY + 22, { width: infoW, height: 35 });
+                }
+                
+                cy += assessmentH + 4;
             }
 
             // Confianza IA

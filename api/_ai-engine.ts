@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { VertexAI } from '@google-cloud/vertexai';
-import { DetectedRisk, RiskLevel, RiskCategory } from './_types.js';
+import { DetectedRisk, RiskLevel, RiskCategory, Probability, Consequence, RiskAssessment, deriveLevelFromScore } from './_types.js';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './_logger.js';
 import { sanitizeInput } from './_utils.js';
@@ -80,8 +80,23 @@ export async function validateImage(
 
 const DEFAULT_SAFETY_CONTEXT = `Eres un experto en seguridad e higiene industrial certificado.
 Analizar la imagen y detectar riesgos de seguridad.
-Respondé ÚNICAMENTE con un JSON válido:
-{ "risks": [ { "category": "...", "description": "...", "level": "...", "confidence": 85, "recommendation": "..." } ] }`;
+Respondé ÚNICAMENTE con un JSON válido con la siguiente estructura:
+{
+  "risks": [
+    {
+      "category": "...",
+      "description": "...",
+      "level": "...",
+      "probability": 3,
+      "probabilityJustification": "...",
+      "consequence": 4,
+      "consequenceJustification": "...",
+      "confidence": 85,
+      "recommendation": "..."
+    }
+  ]
+}
+Nota: "probability" y "consequence" deben ser enteros de 1 a 5 (1: muy bajo/insignificante, 5: muy alto/catastrófico). "level" debe ser derivado (bajo, medio, alto) según los cortes: score (probabilidad * consecuencia) <= 5 bajo, 6-12 medio, >=13 alto. Justifica brevemente la asignación de probabilidad y consecuencia.`;
 
 const ENSI_SAFETY_CONTEXT = `Eres el asistente de inspecciones de ENSI S.E., empresa
 especializada en servicios de ingeniería para la industria petrolera y
@@ -95,8 +110,23 @@ Los riesgos más frecuentes en este contexto son:
 - Vehículos en movimiento sin señalización
 - Condiciones eléctricas inseguras en instalaciones de campo
 Clasificar siempre según Ley 19.587 / Decreto 351/79 y resoluciones SRT.
-Respondé ÚNICAMENTE con un JSON válido:
-{ "risks": [ { "category": "...", "description": "...", "level": "...", "confidence": 85, "recommendation": "..." } ] }`;
+Respondé ÚNICAMENTE con un JSON válido con la siguiente estructura:
+{
+  "risks": [
+    {
+      "category": "...",
+      "description": "...",
+      "level": "...",
+      "probability": 3,
+      "probabilityJustification": "...",
+      "consequence": 4,
+      "consequenceJustification": "...",
+      "confidence": 85,
+      "recommendation": "..."
+    }
+  ]
+}
+Nota: "probability" y "consequence" deben ser enteros de 1 a 5 (1: muy bajo/insignificante, 5: muy alto/catastrófico). "level" debe ser derivado (bajo, medio, alto) según los cortes: score (probabilidad * consecuencia) <= 5 bajo, 6-12 medio, >=13 alto. Justifica brevemente la asignación de probabilidad y consecuencia.`;
 
 function getSystemPrompt(): string {
     return process.env.TENANT === 'ensi' ? ENSI_SAFETY_CONTEXT : DEFAULT_SAFETY_CONTEXT;
@@ -130,16 +160,40 @@ export async function analyzeImageWithGemini(
                 const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
                 const parsed = JSON.parse(cleaned);
 
-                const risks: DetectedRisk[] = (parsed.risks || []).map((r: any) => ({
-                    id: uuidv4(),
-                    category: validateCategory(r.category),
-                    description: r.description || 'Riesgo detectado',
-                    level: validateLevel(r.level),
-                    confidence: Math.min(99, Math.max(60, r.confidence || 75)),
-                    recommendation: r.recommendation,
-                    status: 'pendiente' as const,
-                    aiModel: `${provider}:${modelName}`,
-                }));
+                const risks: DetectedRisk[] = (parsed.risks || []).map((r: any) => {
+                    const level = validateLevel(r.level);
+                    let assessment: RiskAssessment | undefined = undefined;
+                    
+                    const prob = parseInt(r.probability, 10);
+                    const cons = parseInt(r.consequence, 10);
+                    
+                    if (!isNaN(prob) && prob >= 1 && prob <= 5 && !isNaN(cons) && cons >= 1 && cons <= 5) {
+                        const score = prob * cons;
+                        const derivedLevel = deriveLevelFromScore(score);
+                        assessment = {
+                            probability: prob as Probability,
+                            consequence: cons as Consequence,
+                            score,
+                            level: derivedLevel,
+                            source: 'ai',
+                            probabilityJustification: r.probabilityJustification,
+                            consequenceJustification: r.consequenceJustification
+                        };
+                    }
+                    
+                    return {
+                        id: uuidv4(),
+                        category: validateCategory(r.category),
+                        description: r.description || 'Riesgo detectado',
+                        level: assessment ? assessment.level : level,
+                        confidence: Math.min(99, Math.max(60, r.confidence || 75)),
+                        recommendation: r.recommendation,
+                        status: 'pendiente' as const,
+                        aiModel: `${provider}:${modelName}`,
+                        assessment,
+                        history: [],
+                    };
+                });
 
                 // Fundamentación normativa con RAG (Feature B)
                 if (ENABLE_LEGAL_GROUNDING && process.env.TENANT === 'ensi') {
@@ -185,16 +239,40 @@ export async function analyzeTextDescription(
                 const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
                 const parsed = JSON.parse(cleaned);
 
-                const risks = (parsed.risks || []).map((r: any) => ({
-                    id: uuidv4(),
-                    category: validateCategory(r.category),
-                    description: r.description || 'Riesgo detectado',
-                    level: validateLevel(r.level),
-                    confidence: Math.min(99, Math.max(60, r.confidence || 75)),
-                    recommendation: r.recommendation,
-                    status: 'pendiente' as const,
-                    aiModel: `${provider}:${modelName}`,
-                }));
+                const risks: DetectedRisk[] = (parsed.risks || []).map((r: any) => {
+                    const level = validateLevel(r.level);
+                    let assessment: RiskAssessment | undefined = undefined;
+                    
+                    const prob = parseInt(r.probability, 10);
+                    const cons = parseInt(r.consequence, 10);
+                    
+                    if (!isNaN(prob) && prob >= 1 && prob <= 5 && !isNaN(cons) && cons >= 1 && cons <= 5) {
+                        const score = prob * cons;
+                        const derivedLevel = deriveLevelFromScore(score);
+                        assessment = {
+                            probability: prob as Probability,
+                            consequence: cons as Consequence,
+                            score,
+                            level: derivedLevel,
+                            source: 'ai',
+                            probabilityJustification: r.probabilityJustification,
+                            consequenceJustification: r.consequenceJustification
+                        };
+                    }
+                    
+                    return {
+                        id: uuidv4(),
+                        category: validateCategory(r.category),
+                        description: r.description || 'Riesgo detectado',
+                        level: assessment ? assessment.level : level,
+                        confidence: Math.min(99, Math.max(60, r.confidence || 75)),
+                        recommendation: r.recommendation,
+                        status: 'pendiente' as const,
+                        aiModel: `${provider}:${modelName}`,
+                        assessment,
+                        history: [],
+                    };
+                });
 
                 // Fundamentación normativa con RAG (Feature B)
                 if (ENABLE_LEGAL_GROUNDING && process.env.TENANT === 'ensi') {
