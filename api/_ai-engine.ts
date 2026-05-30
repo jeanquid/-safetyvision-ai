@@ -371,3 +371,97 @@ export async function getEmbedding(text: string): Promise<number[]> {
     }
     throw new Error(`All embedding models failed. Last error: ${lastError?.message}`);
 }
+
+export async function transcribeAndStructureAudio(
+    audioBase64: string,
+    mimeType: string,
+    tenantId: string
+): Promise<{
+    transcript: string;
+    structured: {
+        description: string;
+        suggestedCategory: string;
+        plant?: string;
+        sector?: string;
+    };
+}> {
+    const isEnsi = tenantId === 'ensi';
+    const categories = isEnsi
+        ? [
+            'Perforación y completación',
+            'Transporte y logística',
+            'Instalaciones eléctricas',
+            'Manejo de sustancias peligrosas',
+            'Trabajo en altura',
+            'Espacios confinados',
+            'Mediciones ambientales'
+          ]
+        : [
+            'Equipos de Protección Personal',
+            'Condiciones de seguridad',
+            'Comportamiento del personal',
+            'Riesgo eléctrico',
+            'Trabajo en altura',
+            'Otros'
+          ];
+
+    const prompt = `Analizá este fragmento de audio de un inspector de seguridad en campo.
+Tu tarea es transcribir el audio y estructurar el hallazgo.
+Debes responder ÚNICAMENTE con un JSON válido con la siguiente estructura (sin markdown, sin bloques de código, solo el texto JSON):
+{
+  "transcript": "transcripción textual exacta en español",
+  "structured": {
+    "description": "descripción limpia, clara y formal del hallazgo de seguridad en español",
+    "suggestedCategory": "la categoría sugerida",
+    "plant": "planta/yacimiento/locación si se menciona (string), o null",
+    "sector": "sector/área/pozo si se menciona (string), o null"
+  }
+}
+
+Categorías permitidas para sugerir (mapea a la que mejor se adapte):
+${categories.map(c => `- ${c}`).join('\n')}
+
+Por favor, sé conciso y preciso. Si no se mencionan planta o sector en el audio, pon null.`;
+
+    let lastError: Error | null = null;
+    const providers: ('vertex' | 'studio')[] = ['vertex', 'studio'];
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+
+    for (const provider of providers) {
+        for (const modelName of models) {
+            try {
+                const model = getClient(provider, modelName);
+                if (!model) continue;
+
+                logger.info('ai', `Transcribing audio with ${provider}:${modelName}`);
+                const result = await (model as any).generateContent([
+                    { text: prompt },
+                    { inlineData: { mimeType, data: audioBase64 } }
+                ]);
+
+                const response = result.response;
+                const text = response.candidates?.[0]?.content?.parts?.[0]?.text || (response as any).text?.() || '';
+                const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+                const parsed = JSON.parse(cleaned);
+
+                if (!parsed.transcript || !parsed.structured) {
+                    throw new Error('Invalid transcription response structure');
+                }
+
+                return {
+                    transcript: parsed.transcript,
+                    structured: {
+                        description: parsed.structured.description || '',
+                        suggestedCategory: parsed.structured.suggestedCategory || (isEnsi ? 'Perforación y completación' : 'Otros'),
+                        plant: parsed.structured.plant || undefined,
+                        sector: parsed.structured.sector || undefined
+                    }
+                };
+            } catch (err: any) {
+                logger.warn('ai', `Transcription failed with ${provider}:${modelName}`, { error: err.message });
+                lastError = err;
+            }
+        }
+    }
+    throw new Error(`All transcription models failed. Last error: ${lastError?.message}`);
+}

@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { compressImage } from '../_compress-image.js';
 import { createInspection, getInspection, updateInspection, listInspections, deleteInspection, getDashboardStats, saveAiFeedback, updateRiskStatus } from '../_store.js';
 import { savePhoto } from '../_storage.js';
-import { analyzeImageWithGemini, analyzeTextDescription, validateImage } from '../_ai-engine.js';
+import { analyzeImageWithGemini, analyzeTextDescription, validateImage, transcribeAndStructureAudio } from '../_ai-engine.js';
 import { notifyAlert } from '../_notify.js';
 import { DetectedRisk, deriveInspectionStatus, deriveTaskStatus } from '../_types.js';
 import { logger } from '../_logger.js';
@@ -68,7 +68,7 @@ export const analyzeHandler = async (req: Request, res: Response) => {
 export const createHandler = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const { companyId, companyName, plant, sector, operator, risks, task, aiAnalysis, photoUrl, imageWidth, imageHeight } = req.body;
+        const { companyId, companyName, plant, sector, operator, risks, task, aiAnalysis, photoUrl, imageWidth, imageHeight, ogcCategory } = req.body;
 
         if (!companyId || !plant || !risks || !task) {
             return res.status(400).json({ error: 'companyId, plant, risks, and task are required' });
@@ -113,6 +113,7 @@ export const createHandler = async (req: Request, res: Response) => {
             aiAnalysis,
             photoUrl: finalPhotoUrl,
             photoHash,
+            ogcCategory,
         });
 
         const hasHigh = enrichedRisks.some((r: DetectedRisk) => r.level === 'alto');
@@ -387,5 +388,28 @@ export const dashboardHandler = async (req: Request, res: Response) => {
     } catch (error: any) {
         logger.error('inspections', 'Dashboard fetch failed', { error: error.message });
         res.status(500).json({ error: error.message });
+    }
+};
+
+/** POST /api/inspections/transcribe */
+export const transcribeHandler = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const { audioBase64, mimeType } = req.body;
+
+        if (!audioBase64) {
+            return res.status(400).json({ error: 'audioBase64 is required' });
+        }
+
+        const result = await transcribeAndStructureAudio(audioBase64, mimeType || 'audio/webm', user.tenantId);
+        
+        res.json({
+            ok: true,
+            transcript: result.transcript,
+            structured: result.structured
+        });
+    } catch (error: any) {
+        logger.error('inspections', 'Transcription failed', { error: error.message });
+        res.status(500).json({ error: error.message || 'Audio transcription failed' });
     }
 };

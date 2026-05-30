@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Camera, Upload, Loader2, AlertTriangle, CheckCircle, Send, FileText, Building2, HardHat, Factory, Construction, Lightbulb, BarChart3, X, Check } from 'lucide-react';
+import { Camera, Upload, Loader2, AlertTriangle, CheckCircle, Send, FileText, Building2, HardHat, Factory, Construction, Lightbulb, BarChart3, X, Check, Mic, MicOff, Square, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { IS_ENSI, ENSI_BRAND } from '../lib/config';
+import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from '../lib/offline-db';
 
 const ENSI_CATEGORIES = [
     'Perforación y completación',
@@ -108,6 +109,24 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
     const [imageHeight, setImageHeight] = useState<number | null>(null);
     const [hoveredRiskId, setHoveredRiskId] = useState<string | null>(null);
     const [showBoxes, setShowBoxes] = useState(true);
+    const [ogcCategory, setOgcCategory] = useState('');
+    
+    // Voice-to-finding (Feature E) states
+    const [recording, setRecording] = useState(false);
+    const [duration, setDuration] = useState(0);
+    const [transcribing, setTranscribing] = useState(false);
+    const [transcriptionMode, setTranscriptionMode] = useState<'gemini' | 'speech_api'>('gemini');
+    const [micPermission, setMicPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+    const [micError, setMicError] = useState('');
+    const [audioBase64, setAudioBase64] = useState<string | null>(null);
+    const [audioMimeType, setAudioMimeType] = useState('audio/webm');
+    const [offlineQueue, setOfflineQueue] = useState<any[]>([]);
+    const [isOnline, setIsOnline] = useState(true);
+    const [syncingOffline, setSyncingOffline] = useState(false);
+
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const durationIntervalRef = useRef<any>(null);
     
     const [companies, setCompanies] = useState<any[]>([]);
     const [plants, setPlants] = useState<{ name: string; sectors: string[] }[]>([]);
@@ -148,6 +167,248 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
         };
         loadPlants();
     }, [companyId]);
+
+    // Network status tracking
+    useEffect(() => {
+        setIsOnline(navigator.onLine);
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
+    // Load offline queue on mount
+    const loadOfflineQueue = async () => {
+        try {
+            const queue = await getOfflineQueue();
+            setOfflineQueue(queue);
+        } catch (e) {
+            console.error('Failed to load offline queue:', e);
+        }
+    };
+    useEffect(() => {
+        loadOfflineQueue();
+    }, []);
+
+    // MediaRecorder methods
+    const startRecording = async () => {
+        setMicError('');
+        setAudioBase64(null);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            setMicPermission('granted');
+            
+            let mime = 'audio/webm;codecs=opus';
+            if (!MediaRecorder.isTypeSupported(mime)) {
+                mime = 'audio/webm';
+            }
+            if (!MediaRecorder.isTypeSupported(mime)) {
+                mime = 'audio/ogg';
+            }
+            if (!MediaRecorder.isTypeSupported(mime)) {
+                mime = ''; // browser default
+            }
+
+            const recorder = mime 
+                ? new MediaRecorder(stream, { mimeType: mime })
+                : new MediaRecorder(stream);
+                
+            mediaRecorderRef.current = recorder;
+            audioChunksRef.current = [];
+            setAudioMimeType(recorder.mimeType || 'audio/webm');
+
+            recorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) {
+                    audioChunksRef.current.push(e.data);
+                }
+            };
+
+            recorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+                
+                // Convert to base64
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = (reader.result as string).split(',')[1];
+                    setAudioBase64(base64data);
+                };
+                reader.readAsDataURL(audioBlob);
+                
+                // Stop all tracks to release mic
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            recorder.start();
+            setRecording(true);
+            setDuration(0);
+
+            durationIntervalRef.current = setInterval(() => {
+                setDuration(prev => {
+                    if (prev >= 59) {
+                        stopRecording();
+                        return 60;
+                    }
+                    return prev + 1;
+                });
+            }, 1000);
+
+        } catch (err: any) {
+            console.error('Failed to get media devices:', err);
+            setMicPermission('denied');
+            setMicError('Permiso de micrófono denegado o no disponible.');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+        if (durationIntervalRef.current) {
+            clearInterval(durationIntervalRef.current);
+        }
+        setRecording(false);
+    };
+
+    // Web Speech API method
+    const startSpeechRecognition = () => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            setMicError('Tu navegador no soporta el reconocimiento de voz local (Web Speech API).');
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'es-AR';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            setRecording(true);
+            setMicError('');
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+            setMicError(`Error de reconocimiento: ${event.error}`);
+            setRecording(false);
+        };
+
+        recognition.onend = () => {
+            setRecording(false);
+        };
+
+        recognition.onresult = (event: any) => {
+            const transcriptText = event.results[0][0].transcript;
+            setDescription(prev => prev ? `${prev} ${transcriptText}` : transcriptText);
+        };
+
+        recognition.start();
+    };
+
+    // Process audio (Gemini / Offline Queue)
+    const handleProcessAudio = async () => {
+        if (!audioBase64) return;
+        
+        if (transcriptionMode === 'gemini') {
+            if (!isOnline) {
+                // If offline, ask to enqueue
+                try {
+                    const record = {
+                        id: Math.random().toString(36).substring(2, 9),
+                        audioBase64,
+                        mimeType: audioMimeType,
+                        timestamp: new Date().toISOString()
+                    };
+                    await addToOfflineQueue(record);
+                    await loadOfflineQueue();
+                    alert('Guardado en cola offline. Se procesará cuando recuperes la señal.');
+                    setAudioBase64(null);
+                } catch (e: any) {
+                    setMicError(`No se pudo encolar: ${e.message}`);
+                }
+                return;
+            }
+
+            setTranscribing(true);
+            setMicError('');
+            try {
+                const res = await authFetch('/api/inspections/transcribe', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        audioBase64,
+                        mimeType: audioMimeType
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) throw new Error(data.error || 'Transcription failed');
+                
+                setDescription(data.transcript || data.structured.description);
+                if (data.structured.plant) setPlant(data.structured.plant);
+                if (data.structured.sector) setSector(data.structured.sector);
+                if (data.structured.suggestedCategory) {
+                    setOgcCategory(data.structured.suggestedCategory);
+                }
+                setAudioBase64(null);
+            } catch (err: any) {
+                setMicError(`Error al transcribir: ${err.message}`);
+            } finally {
+                setTranscribing(false);
+            }
+        }
+    };
+
+    // Sync offline queue
+    const handleSyncOffline = async () => {
+        if (!isOnline) {
+            setError('No tienes conexión a internet para sincronizar.');
+            return;
+        }
+        setSyncingOffline(true);
+        setError('');
+        try {
+            let syncedCount = 0;
+            const queue = await getOfflineQueue();
+            for (const item of queue) {
+                try {
+                    const res = await authFetch('/api/inspections/transcribe', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            audioBase64: item.audioBase64,
+                            mimeType: item.mimeType
+                        })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.ok) {
+                        setDescription(data.transcript || data.structured.description);
+                        if (data.structured.plant) setPlant(data.structured.plant);
+                        if (data.structured.sector) setSector(data.structured.sector);
+                        if (data.structured.suggestedCategory) {
+                            setOgcCategory(data.structured.suggestedCategory);
+                        }
+                        
+                        await removeFromOfflineQueue(item.id);
+                        syncedCount++;
+                    }
+                } catch (err) {
+                    console.error('Failed to sync offline item:', item.id, err);
+                }
+            }
+            await loadOfflineQueue();
+            if (syncedCount > 0) {
+                alert(`Sincronizados ${syncedCount} audios offline con éxito. Se cargó el hallazgo en el formulario.`);
+            } else {
+                setError('No se pudo procesar ningún audio de la cola.');
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setSyncingOffline(false);
+        }
+    };
 
     const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -283,6 +544,7 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                     companyId, companyName, plant, sector, operator, risks, task,
                     imageBase64, mimeType,
                     imageWidth, imageHeight,
+                    ogcCategory: ogcCategory || undefined,
                     aiAnalysis: { 
                         model: aiModel, 
                         analyzedAt: new Date().toISOString(),
@@ -326,6 +588,24 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                             : 'Realizar relevamiento de seguridad'}
                     </p>
                 </div>
+
+                {offlineQueue.length > 0 && (
+                    <div className="flex items-center justify-between gap-2 bg-blue-500/10 border border-blue-500/20 rounded-xl p-3.5 text-sm text-blue-400">
+                        <div className="flex items-center gap-2">
+                            <WifiOff className="w-4 h-4 shrink-0" />
+                            <span>Tienes {offlineQueue.length} grabaciones de voz guardadas sin conexión.</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleSyncOffline}
+                            disabled={syncingOffline}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs transition-all disabled:opacity-50"
+                        >
+                            {syncingOffline ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                            Sincronizar
+                        </button>
+                    </div>
+                )}
 
                 {error && (
                     <div className="flex items-center gap-2 text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm">
@@ -410,6 +690,123 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                     )}
                 </div>
 
+                {/* Hands-Free Voice-to-Finding Panel (Feature E) */}
+                <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                        <span>Dictado por Voz (Manos Libres)</span>
+                        <div className="flex items-center gap-1.5">
+                            {isOnline ? (
+                                <span className="flex items-center gap-1 text-emerald-400">
+                                    <Wifi className="w-3 h-3" /> Online
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1 text-amber-400 animate-pulse">
+                                    <WifiOff className="w-3 h-3" /> Offline
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                        {/* Selector de modo */}
+                        <div className="w-full sm:w-auto flex bg-slate-800 p-0.5 rounded-xl border border-slate-700 font-sans">
+                            <button
+                                type="button"
+                                onClick={() => setTranscriptionMode('gemini')}
+                                className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    transcriptionMode === 'gemini'
+                                        ? 'bg-slate-900 text-blue-400 shadow-sm'
+                                        : 'text-slate-400 hover:text-white'
+                                }`}
+                            >
+                                Gemini AI
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTranscriptionMode('speech_api')}
+                                className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    transcriptionMode === 'speech_api'
+                                        ? 'bg-slate-900 text-blue-400 shadow-sm'
+                                        : 'text-slate-400 hover:text-white'
+                                }`}
+                                title="Web Speech API (local en navegador)"
+                            >
+                                Web Speech (Local)
+                            </button>
+                        </div>
+
+                        {/* Botones de acción */}
+                        <div className="w-full sm:flex-1 flex items-center justify-center gap-2">
+                            {!recording && !audioBase64 && (
+                                <button
+                                    type="button"
+                                    onClick={transcriptionMode === 'gemini' ? startRecording : startSpeechRecognition}
+                                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/20 text-blue-400 font-bold rounded-xl text-sm transition-all"
+                                >
+                                    <Mic className="w-4 h-4" />
+                                    Grabar Hallazgo
+                                </button>
+                            )}
+
+                            {recording && (
+                                <div className="w-full flex items-center justify-between gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-2 px-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                                        <span className="text-xs text-red-400 font-bold">
+                                            {transcriptionMode === 'gemini' 
+                                                ? `Grabando (${duration}s / 60s)` 
+                                                : 'Escuchando...'}
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={stopRecording}
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold text-xs transition-all"
+                                    >
+                                        <Square className="w-3.5 h-3.5" />
+                                        Detener
+                                    </button>
+                                </div>
+                            )}
+
+                            {audioBase64 && !transcribing && (
+                                <div className="w-full flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleProcessAudio}
+                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition-all"
+                                    >
+                                        <Check className="w-3.5 h-3.5" />
+                                        {isOnline ? 'Procesar con IA' : 'Guardar offline'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAudioBase64(null)}
+                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs transition-all border border-slate-700"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                        Descartar
+                                    </button>
+                                </div>
+                            )}
+
+                            {transcribing && (
+                                <div className="w-full flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl p-2.5 px-3 text-xs font-bold">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Transcribiendo y estructurando audio...</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {micError && (
+                        <div className="flex items-center gap-1.5 text-red-400 text-xs mt-1">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>{micError}</span>
+                        </div>
+                    )}
+                </div>
+
                 <textarea value={description} onChange={e => setDescription(e.target.value)}
                     placeholder={IS_ENSI
                         ? 'Ej: Equipo de perforación Nro. 3 · Sector andamio · Turno mañana · Operario sin arnés detectado visualmente'
@@ -420,7 +817,8 @@ export const NewInspection: React.FC<Props> = ({ onComplete, selectedCompanyId }
                 {IS_ENSI && (
                     <div>
                         <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Categoría de riesgo O&amp;G</label>
-                        <select className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                        <select value={ogcCategory} onChange={e => setOgcCategory(e.target.value)}
+                            className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
                             <option value="">Seleccionar categoría...</option>
                             {ENSI_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                         </select>

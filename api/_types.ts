@@ -142,6 +142,7 @@ export interface InspectionState {
     updatedAt: string;
     complianceState?: 'completo' | 'con_observaciones';
     complianceNotes?: string;
+    ogcCategory?: string;
 }
 
 /**

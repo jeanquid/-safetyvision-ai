@@ -24,6 +24,7 @@ import {
     updateTaskHandler,
     deleteHandler,
     dashboardHandler,
+    transcribeHandler,
 } from './_inspections/handlers.js';
 import {
     createScheduleHandler,
@@ -146,6 +147,7 @@ export async function createApiApp() {
     // ── Inspection Routes ──
     const insRouter = express.Router();
     insRouter.post('/analyze', safeAuth, analyzeLimiter, analyzeHandler);
+    insRouter.post('/transcribe', safeAuth, transcribeHandler);
     insRouter.post('/create', safeAuth, createHandler);
     insRouter.get('/list', safeAuth, listHandler);
     insRouter.get('/:id', safeAuth, getHandler);

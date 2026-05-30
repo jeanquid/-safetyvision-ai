@@ -46,12 +46,31 @@ const mockValidationResponse = JSON.stringify({
     reason: 'Imagen muestra un entorno de planta industrial',
 });
 
+const mockTranscriptionResponse = JSON.stringify({
+    transcript: 'encuentro un operario sin arnés trabajando en altura sobre el equipo de pulling, sector boca de pozo, planta norte',
+    structured: {
+        description: 'Operario sin arnés de seguridad trabajando en altura sobre el equipo de pulling',
+        suggestedCategory: 'Trabajo en altura',
+        plant: 'Planta Norte',
+        sector: 'Boca de pozo'
+    }
+});
+
 // Implementacion compartida de los mocks de modelos
 const createMockModel = () => ({
     generateContent: vi.fn().mockImplementation(async (input: any) => {
         const text = Array.isArray(input)
             ? input.find((i: any) => i.text)?.text || ''
             : typeof input === 'string' ? input : '';
+
+        // Audio transcription check
+        if (text.includes('transcribir el audio y estructurar') || text.includes('transcript') || text.includes('structured')) {
+            return {
+                response: {
+                    text: () => mockTranscriptionResponse,
+                },
+            };
+        }
 
         // Grounding RAG prompt check
         if (text.includes('Dada la descripción de un riesgo de seguridad') || text.includes('artículos normativos candidatos')) {

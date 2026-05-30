@@ -124,6 +124,7 @@ export async function createInspection(data: {
     aiAnalysis?: any;
     photoUrl?: string;
     photoHash?: string;
+    ogcCategory?: string;
 }): Promise<InspectionState> {
     const inspectionId = data.inspectionId || uuidv4();
     const now = new Date().toISOString();
@@ -175,6 +176,7 @@ export async function createInspection(data: {
         aiAnalysis: data.aiAnalysis,
         createdAt: now,
         updatedAt: now,
+        ogcCategory: data.ogcCategory,
     };
 
     const autocontrol = runAutocontrol(state);
